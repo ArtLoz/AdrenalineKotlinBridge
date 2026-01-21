@@ -6,7 +6,7 @@ uses
   Windows;
 
 const
-  BUFFER_SIZE = 4096;
+  BUFFER_SIZE = 16384;
   COMMAND_CHECK_INTERVAL = 10;
 
 type

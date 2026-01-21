@@ -9,12 +9,12 @@ type
   TEventForwarder = class
   private
     FPipeManager: TPipeManager;
-    
+
     function MemToHex(const Data; Size: Integer): AnsiString;
-    
+
   public
     constructor Create(APipeManager: TPipeManager);
-    
+
     procedure ForwardAction(Action: TL2Action; P1, P2: Pointer);
     procedure ForwardPacket(ID1, ID2: Cardinal; Data: Pointer; Size: Word);
     procedure ForwardCliPacket(ID1, ID2: Cardinal; Data: Pointer; Size: Word);
@@ -51,11 +51,11 @@ var
 begin
   try
     Data := AnsiString(
-      IntToStr(Ord(Action)) + '|' + 
-      IntToStr(Integer(P1)) + '|' + 
+      IntToStr(Ord(Action)) + '|' +
+      IntToStr(Integer(P1)) + '|' +
       IntToStr(Integer(P2)) + #13#10
     );
-    
+
     FPipeManager.SendToPipe(FPipeManager.Pipes.Action, Data);
   except
   end;
@@ -70,7 +70,7 @@ begin
       PacketData := MemToHex(ID1, 1) + MemToHex(ID2, 2) + '|' + MemToHex(Data^, Size)
     else
       PacketData := MemToHex(ID1, 1) + '|' + MemToHex(Data^, Size);
-    
+
     FPipeManager.SendToPipe(FPipeManager.Pipes.Packet, PacketData + #13#10);
   except
   end;
@@ -85,7 +85,7 @@ begin
       PacketData := MemToHex(ID1, 1) + MemToHex(ID2, 2) + '|' + MemToHex(Data^, Size)
     else
       PacketData := MemToHex(ID1, 1) + '|' + MemToHex(Data^, Size);
-    
+
     FPipeManager.SendToPipe(FPipeManager.Pipes.CliPacket, PacketData + #13#10);
   except
   end;
