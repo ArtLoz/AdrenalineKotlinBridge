@@ -1,4 +1,4 @@
-﻿library BridgeV1;
+library BridgeV1;
 
 uses
   Windows,

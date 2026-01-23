@@ -21,7 +21,6 @@ type
     procedure RegisterMethods;
     function ProcessRpc(const JsonStr: string): string;
 
-    // Методы API
     function MethodGetMe(Params: TJSONObject): TJSONValue;
     function MethodEcho(Params: TJSONObject): TJSONValue;
   public
@@ -132,7 +131,6 @@ end;
 
 function TCommandProcessor.Start: Boolean;
 begin
-  // Передаем Self в поток для изоляции данных
   FCommandThread := CreateThread(nil, 0, @CommandThreadProc, Self, 0, FCommandThreadID);
   Result := FCommandThread <> 0;
 end;
@@ -141,7 +139,7 @@ procedure TCommandProcessor.Stop;
 begin
   if FCommandThread = 0 then Exit;
   FStopRequested := True;
-  WaitForSingleObject(FCommandThread, 2000);
+  WaitForSingleObject(FCommandThread, 500);
   CloseHandle(FCommandThread);
   FCommandThread := 0;
 end;
@@ -151,6 +149,8 @@ var
   Processor: TCommandProcessor;
   Cmd: string;
   Resp: string;
+  ReadSuccess: Boolean;
+  WriteSuccess: Boolean;
 begin
   Result := 0;
   if not Assigned(P) then Exit;
@@ -158,12 +158,45 @@ begin
 
   while not Processor.FStopRequested do
   begin
-    if Processor.FPipeManager.ReadFromPipe(Processor.FPipeManager.Pipes.Command, Cmd) then
+    ReadSuccess := Processor.FPipeManager.ReadFromPipe(
+      Processor.FPipeManager.Pipes.Command, Cmd);
+    
+    if ReadSuccess then
     begin
       Resp := Processor.ProcessRpc(Cmd);
-      // КРИТИЧНО: Добавляем #13#10 для Kotlin readLine()
-      Processor.FPipeManager.SendToPipe(Processor.FPipeManager.Pipes.Response, UTF8String(Resp + #13#10));
+      WriteSuccess := Processor.FPipeManager.SendToPipe(
+        Processor.FPipeManager.Pipes.Response, UTF8String(Resp + #13#10));
+      if not WriteSuccess then
+      begin
+        Processor.FPipeManager.ReconnectPipe(
+          Processor.FPipeManager.FPipes.Command, 'commands', True);
+        Processor.FPipeManager.ReconnectPipe(
+          Processor.FPipeManager.FPipes.Response, 'responses', False);
+        Processor.FPipeManager.ReconnectPipe(
+          Processor.FPipeManager.FPipes.Action, 'actions', False);
+        Processor.FPipeManager.ReconnectPipe(
+          Processor.FPipeManager.FPipes.Packet, 'packets', False);
+        Processor.FPipeManager.ReconnectPipe(
+          Processor.FPipeManager.FPipes.CliPacket, 'clipackets', False);
+      end;
+    end
+    else
+    begin
+      if not PeekNamedPipe(Processor.FPipeManager.Pipes.Command, nil, 0, nil, nil, nil) then
+      begin
+        Processor.FPipeManager.ReconnectPipe(
+          Processor.FPipeManager.FPipes.Command, 'commands', True);
+        Processor.FPipeManager.ReconnectPipe(
+          Processor.FPipeManager.FPipes.Response, 'responses', False);
+        Processor.FPipeManager.ReconnectPipe(
+          Processor.FPipeManager.FPipes.Action, 'actions', False);
+        Processor.FPipeManager.ReconnectPipe(
+          Processor.FPipeManager.FPipes.Packet, 'packets', False);
+        Processor.FPipeManager.ReconnectPipe(
+          Processor.FPipeManager.FPipes.CliPacket, 'clipackets', False);
+      end;
     end;
+    
     Sleep(COMMAND_CHECK_INTERVAL);
   end;
 end;

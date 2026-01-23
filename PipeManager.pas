@@ -10,16 +10,17 @@ type
   private
     FEngine: IL2Control;
     FCharacterName: string;
-    FPipes: TPipeHandles;
     function CreatePipe(const BaseName: string; Inbound: Boolean): THandle;
     function Sanitize(const S: string): string;
   public
+    FPipes: TPipeHandles;
     constructor Create(AEngine: IL2Control; const ACharName: string);
     destructor Destroy; override;
 
     function Initialize: Boolean;
     function ReadFromPipe(PipeHandle: THandle; var Data: string): Boolean;
     function SendToPipe(PipeHandle: THandle; const Data: AnsiString): Boolean;
+    function ReconnectPipe(var PipeHandle: THandle; const BaseName: string; Inbound: Boolean): Boolean;
 
     property Pipes: TPipeHandles read FPipes;
   end;
@@ -65,10 +66,8 @@ var
 begin
   FullName := Format('\\.\pipe\l2bot_%s_%s', [BaseName, FCharacterName]);
 
-  // Настройка SECURITY_ATTRIBUTES для разрешения доступа всем (Everyone)
-  // Это исправляет Error 5 (Access Denied) при подключении из внешних приложений
   InitializeSecurityDescriptor(@SD, SECURITY_DESCRIPTOR_REVISION);
-  SetSecurityDescriptorDacl(@SD, True, nil, False); // NULL DACL = доступ разрешен всем
+  SetSecurityDescriptorDacl(@SD, True, nil, False);
 
   SA.nLength := SizeOf(SA);
   SA.lpSecurityDescriptor := @SD;
@@ -79,7 +78,6 @@ begin
   else
     Access := PIPE_ACCESS_OUTBOUND;
 
-  // Передаем @SA вместо nil
   Result := CreateNamedPipe(PChar(FullName), Access,
     PIPE_TYPE_MESSAGE or PIPE_READMODE_MESSAGE or PIPE_WAIT,
     PIPE_UNLIMITED_INSTANCES, BUFFER_SIZE, BUFFER_SIZE, 0, @SA);
@@ -122,6 +120,21 @@ begin
   Result := False;
   if (PipeHandle <> INVALID_HANDLE_VALUE) and (Length(Data) > 0) then
     Result := WriteFile(PipeHandle, Data[1], Length(Data), BytesWritten, nil);
+end;
+
+function TPipeManager.ReconnectPipe(var PipeHandle: THandle; const BaseName: string; Inbound: Boolean): Boolean;
+begin
+  Result := False;
+
+  if PipeHandle <> INVALID_HANDLE_VALUE then
+  begin
+    DisconnectNamedPipe(PipeHandle);
+    CloseHandle(PipeHandle);
+    PipeHandle := INVALID_HANDLE_VALUE;
+  end;
+
+  PipeHandle := CreatePipe(BaseName, Inbound);
+  Result := (PipeHandle <> INVALID_HANDLE_VALUE);
 end;
 
 end.
