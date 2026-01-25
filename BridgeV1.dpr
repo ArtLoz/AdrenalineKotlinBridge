@@ -9,7 +9,8 @@ uses
   PipeManager in 'PipeManager.pas',
   CommandProcessor in 'CommandProcessor.pas',
   EventForwarder in 'EventForwarder.pas',
-  JsonSerialization in 'JsonSerialization.pas';
+  JsonSerialization in 'JsonSerialization.pas',
+  Logger in 'Logger.pas';
 
 {$R *.res}
 

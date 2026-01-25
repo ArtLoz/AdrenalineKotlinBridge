@@ -73,6 +73,7 @@
         <DCCReference Include="CommandProcessor.pas"/>
         <DCCReference Include="EventForwarder.pas"/>
         <DCCReference Include="JsonSerialization.pas"/>
+        <DCCReference Include="Logger.pas"/>
         <BuildConfiguration Include="Base">
             <Key>Base</Key>
         </BuildConfiguration>
