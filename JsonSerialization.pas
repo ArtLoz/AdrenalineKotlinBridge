@@ -253,11 +253,24 @@ end;
 
 procedure FillL2User(Src: IL2User; Dest: TJSONObject);
 begin
-  if (Src = nil) or (not Src.Valid) then Exit;
-  try
-    // Наследование
-    FillL2Char(Src, Dest);
 
+  // Проверяем указатель на nil и валидность объекта
+  if (Src = nil) then
+  begin
+    TraceError('FillL2User', 'Source object is NIL');
+    TraceLeave('FillL2User');
+    Exit;
+  end;
+
+  if not Src.Valid then
+  begin
+    TraceFmt('FillL2User: Source object is INVALID (OID: %d)', [Src.OID]);
+    TraceLeave('FillL2User');
+    Exit;
+  end;
+
+  try
+    FillL2Char(Src, Dest);
     Dest.AddPair('can_cryst', TJSONBool.Create(Src.CanCryst));
     Dest.AddPair('charges', TJSONNumber.Create(Src.Charges));
     Dest.AddPair('souls', TJSONNumber.Create(Src.Souls));
@@ -282,6 +295,7 @@ begin
     Dest.AddPair('m_accuracy', TJSONNumber.Create(Src.MAccuracy));
     Dest.AddPair('m_evasion', TJSONNumber.Create(Src.MEvasioon));
     Dest.AddPair('m_crit', TJSONNumber.Create(Src.MCritical));
+
   except
     on E: Exception do
       TraceException('FillL2User', E);
