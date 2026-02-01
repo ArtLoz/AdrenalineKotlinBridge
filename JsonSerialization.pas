@@ -42,6 +42,8 @@ procedure FillL2ConfirmDlg(Src: IConfirmDlg; Dest: TJSONObject);
 procedure FillL2ChatMessage(Src: IChatMessage; Dest: TJSONObject);
 procedure FillL2Messages(Src: IMessages; Dest: TJSONObject; MsgType: TMessageType = mtAll);
 
+procedure FillGpsPointFromStr(const RawData: WideString; Dest: TJSONObject);
+
 implementation
 
 procedure FillL2Object(Src: IL2Object; Dest: TJSONObject);
@@ -752,6 +754,33 @@ begin
   except
     on E: Exception do
       TraceException('FillL2AuctionList', E);
+  end;
+end;
+
+procedure FillGpsPointFromStr(const RawData: WideString; Dest: TJSONObject);
+var
+  Parts: TArray<string>;
+begin
+  if Dest = nil then Exit;
+
+  if RawData = '' then Exit;
+
+  try
+    Parts := string(RawData).Split([';']);
+
+    if Length(Parts) < 5 then Exit;
+
+    Dest.AddPair('name', TJSONString.Create(Parts[0]));
+    Dest.AddPair('x',    TJSONNumber.Create(Parts[1]));
+    Dest.AddPair('y',    TJSONNumber.Create(Parts[2]));
+    Dest.AddPair('z',    TJSONNumber.Create(Parts[3]));
+    Dest.AddPair('id',   TJSONNumber.Create(Parts[4]));
+
+  except
+    on E: Exception do
+    begin
+      TraceException('FillGpsPointFromStr', E);
+    end;
   end;
 end;
 

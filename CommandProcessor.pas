@@ -161,6 +161,10 @@ type
     function GetSkillList(Params: TJSONObject): TJSONValue;
     function GetCharList(Params: TJSONObject): TJSONValue;
     function GetDropList(Params: TJSONObject): TJSONValue;
+    function MethodLoadGPSPoint(Params: TJSONObject): TJSONValue;
+    function MethodGPSMove(Params: TJSONObject): TJSONValue;
+    function MethodGetGPSPoint(Params: TJSONObject): TJSONValue;
+    function MethodGPSMoveRandom(Params: TJSONObject): TJSONValue;
 
   public
     constructor Create(AEngine: IL2Control; APipeManager: TPipeManager);
@@ -172,6 +176,9 @@ type
     property ThreadID: Cardinal read FCommandThreadID;
   end;
 
+var
+  _PluginProc: function(Code: Cardinal; p1, p2, p3: widestring): widestring; stdcall;
+
 function CommandThreadProc(P: Pointer): DWORD; stdcall;
 
 // Если константа не определена в PluginAPI, определим её здесь по умолчанию
@@ -180,6 +187,11 @@ const
   ERROR_PIPE_LISTENING = 536; // Код ошибки ожидания подключения
 
 implementation
+
+function PluginProc(Code: Cardinal; p1: widestring = ''; p2: widestring = ''; p3: widestring = ''): widestring;
+begin
+  Result := _PluginProc(Code, p1, p2, p3);
+end;
 
 constructor TCommandProcessor.Create(AEngine: IL2Control; APipeManager: TPipeManager);
 begin
@@ -361,6 +373,12 @@ begin
   FMethods.Add('Engine.GetSkillList', GetSkillList);
   FMethods.Add('Engine.GetCharList', GetCharList);
   FMethods.Add('Engine.GetDropList', GetDropList);
+
+  FMethods.Add('Engine.LoadGPSPoint', MethodLoadGPSPoint);
+  FMethods.Add('Engine.GPSMove', MethodGPSMove);
+  FMethods.Add('Engine.GPSPoint', MethodGetGPSPoint);
+  FMethods.Add('Engine.GPSMoveRandom', MethodGPSMoveRandom);
+
 end;
 
 //comands
@@ -566,17 +584,15 @@ begin
   try
     if not Assigned(FEngine) then Exit;
 
-    // Получаем строку из параметров, по умолчанию 'town'
     if not Params.TryGetValue<string>('res_type', ResStr) then
       ResStr := 'town';
 
-    // Внутренняя конвертация строки в Enum
     ResStr := LowerCase(ResStr);
     if ResStr = 'clanhall' then RestartType := rtClanHall
     else if ResStr = 'castle'   then RestartType := rtCastle
     else if ResStr = 'fort'     then RestartType := rtFort
     else if ResStr = 'flags'    then RestartType := rtFlags
-    else RestartType := rtTown; // Для 'town' или любого мусора на входе
+    else RestartType := rtTown;
 
     Success := FEngine.GoHome(RestartType);
 
@@ -2304,7 +2320,6 @@ begin
     if Assigned(FEngine) then
     begin
       Zone := FEngine.GetZoneType;
-
       ZoneName := GetEnumName(TypeInfo(TZoneType), Ord(Zone));
       Result.Free;
       Result := TJSONString.Create(ZoneName);
@@ -2737,7 +2752,6 @@ begin
     if not Assigned(FEngine) then Exit;
 
     LValue := Params.Values['game'];
-    // Если параметр не передан, по умолчанию мигаем окном игры
     TargetGame := not (Assigned(LValue) and (LValue is TJSONFalse));
 
     Result.Free;
@@ -2899,7 +2913,6 @@ begin
     if Assigned(FEngine) then
     begin
       Result.Free;
-      // Возвращаем номер протокола (например, 273 для High Five или 447+)
       Result := TJSONNumber.Create(FEngine.GameProtocol);
     end;
   except
@@ -3182,6 +3195,81 @@ begin
     on E: Exception do TraceException('MethodWaitAction', E);
   end;
 end;
+function TCommandProcessor.MethodLoadGPSPoint(Params: TJSONObject): TJSONValue;
+var
+  FilePath: string;
+begin
+  Result := TJSONNumber.Create(0);
+  try
+    if not Assigned(FEngine) then Exit;
+
+    FilePath := Params.Values['file_path'].Value;
+
+    Result.Free;
+    Result := TJSONNumber.Create(StrToInt(PluginProc(1000, FilePath)));
+  except
+    on E: Exception do
+      TraceException('MethodLoadGPSPoint', E);
+  end;
+end;
+function TCommandProcessor.MethodGPSMove(Params: TJSONObject): TJSONValue;
+var
+ GPSName:WideString;
+ bValue: Boolean;
+begin
+  Result := TJSONBool.Create(False);
+  try
+    if Assigned(FEngine) then
+    begin
+      GPSName := Params.Values['gps_name'].Value;
+      bValue:= (PluginProc(1001,GPSName) = '1');
+      Result.Free;
+      Result := TJSONBool.Create(bValue);
+    end;
+  except
+    on E: Exception do
+      TraceException('MethodGPSMove', E);
+  end;
+end;
+function TCommandProcessor.MethodGetGPSPoint(Params: TJSONObject): TJSONValue;
+var
+ GPSName:WideString;
+ Obj: TJSONObject;
+begin
+   Obj:= TJSONObject.Create;
+  try
+    if Assigned(FEngine) then
+    begin
+      GPSName := Params.Values['gps_name'].Value;
+      FillGpsPointFromStr(PluginProc(1002, GPSName), Obj);
+      Result:= Obj;
+    end;
+  except
+    on E: Exception do
+      TraceException('MethodGetGPSPoint', E);
+  end;
+end;
+function TCommandProcessor.MethodGPSMoveRandom(Params: TJSONObject): TJSONValue;
+var
+ GPSName:WideString;
+ RandomRange:WideString;
+ bValue: Boolean;
+begin
+  Result := TJSONBool.Create(False);
+  try
+    if Assigned(FEngine) then
+    begin
+      GPSName := Params.Values['gps_name'].Value;
+      RandomRange := Params.Values['gps_range'].Value;
+      bValue:= (PluginProc(1003,GPSName, RandomRange) = '1');
+      Result.Free;
+      Result := TJSONBool.Create(bValue);
+    end;
+  except
+    on E: Exception do
+      TraceException('MethodGPSMove', E);
+  end;
+end;
 
 //lists
 function TCommandProcessor.GetNpcList(Params: TJSONObject): TJSONValue;
@@ -3269,10 +3357,8 @@ var
 begin
   jarray := TJSONArray.Create;
   try
-
     if Assigned(FEngine) and Assigned(FEngine.CharList) then
       FillL2CharList(FEngine.CharList, jarray);
-
     Result := jarray;
   except
     on E: Exception do
@@ -3291,7 +3377,6 @@ begin
   try
     if Assigned(FEngine) and Assigned(FEngine.DropList) then
       FillL2DropList(FEngine.DropList, jarray);
-
     Result := jarray;
   except
     on E: Exception do
@@ -3302,7 +3387,6 @@ begin
     end;
   end;
 end;
-
 
 function TCommandProcessor.ProcessRpc(const JsonStr: string): string;
 var
