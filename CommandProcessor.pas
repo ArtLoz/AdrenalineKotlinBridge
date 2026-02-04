@@ -456,50 +456,54 @@ begin
     Exit;
   end;
   try
-    // 3. Поиск в NPC
-    if Assigned(FEngine.NpcList) then
-    begin
-      for i := 0 to FEngine.NpcList.Count - 1 do
+    FEngine.Lock;
+    try
+      // 3. Поиск в NPC
+      if Assigned(FEngine.NpcList) then
       begin
-        Obj := FEngine.NpcList.Items[i];
-        if (Obj <> nil) and (Obj.OID = TargetOID) then
+        for i := 0 to FEngine.NpcList.Count - 1 do
         begin
-          FEngine.MoveTo(Obj as IL2Spawn, Delta);
-          IsFound := True;
-          Break;
+          Obj := FEngine.NpcList.Items[i];
+          if (Obj <> nil) and (Obj.OID = TargetOID) then
+          begin
+            IsFound := True;
+            Break;
+          end;
         end;
       end;
-    end;
-    // 4. Поиск в Игроках (если не нашли в NPC)
-    if (not IsFound) and Assigned(FEngine.CharList) then
-    begin
-      for i := 0 to FEngine.CharList.Count - 1 do
+      // 4. Поиск в Игроках (если не нашли в NPC)
+      if (not IsFound) and Assigned(FEngine.CharList) then
       begin
-        Obj := FEngine.CharList.Items[i];
-        if (Obj <> nil) and (Obj.OID = TargetOID) then
+        for i := 0 to FEngine.CharList.Count - 1 do
         begin
-          FEngine.MoveTo(Obj as IL2Spawn, Delta);
-          IsFound := True;
-          Break;
+          Obj := FEngine.CharList.Items[i];
+          if (Obj <> nil) and (Obj.OID = TargetOID) then
+          begin
+            IsFound := True;
+            Break;
+          end;
         end;
       end;
-    end;
-    // 5. Поиск в Дропе (если не нашли ранее)
-    if (not IsFound) and Assigned(FEngine.DropList) then
-    begin
-      for i := 0 to FEngine.DropList.Count - 1 do
+      // 5. Поиск в Дропе (если не нашли ранее)
+      if (not IsFound) and Assigned(FEngine.DropList) then
       begin
-        Obj := FEngine.DropList.Items[i];
-        if (Obj <> nil) and (Obj.OID = TargetOID) then
+        for i := 0 to FEngine.DropList.Count - 1 do
         begin
-          FEngine.MoveTo(Obj as IL2Spawn, Delta);
-          IsFound := True;
-          Break;
+          Obj := FEngine.DropList.Items[i];
+          if (Obj <> nil) and (Obj.OID = TargetOID) then
+          begin
+            IsFound := True;
+            Break;
+          end;
         end;
       end;
+    finally
+      FEngine.UnLock;
     end;
-    if IsFound then
+    // MoveTo вызываем уже после UnLock
+    if IsFound and (Obj <> nil) then
     begin
+      FEngine.MoveTo(Obj as IL2Spawn, Delta);
       Result.Free;
       Result := TJSONBool.Create(True);
     end
@@ -691,9 +695,10 @@ var
   ItemOID: Cardinal;
   ByPet: Boolean;
   i: Integer;
-  Item: IL2Drop;
+  Item, FoundItem: IL2Drop;
 begin
   Result := TJSONBool.Create(False);
+  FoundItem := nil;
   try
     if not Assigned(FEngine) or not Assigned(FEngine.DropList) then Exit;
 
@@ -701,16 +706,25 @@ begin
     if not Params.TryGetValue<Boolean>('by_pet', ByPet) then ByPet := False;
 
     // Ищем предмет в DropList по OID
-    for i := 0 to FEngine.DropList.Count - 1 do
-    begin
-      Item := FEngine.DropList.Items[i];
-      if (Item <> nil) and (Item.OID = ItemOID) then
+    FEngine.Lock;
+    try
+      for i := 0 to FEngine.DropList.Count - 1 do
       begin
-        Result.Free;
-        // Передаем найденный IL2Drop и флаг питомца
-        Result := TJSONBool.Create(FEngine.PickUp(Item, ByPet));
-        Break;
+        Item := FEngine.DropList.Items[i];
+        if (Item <> nil) and (Item.OID = ItemOID) then
+        begin
+          FoundItem := Item;
+          Break;
+        end;
       end;
+    finally
+      FEngine.UnLock;
+    end;
+
+    if FoundItem <> nil then
+    begin
+      Result.Free;
+      Result := TJSONBool.Create(FEngine.PickUp(FoundItem, ByPet));
     end;
   except
     on E: Exception do
@@ -763,17 +777,24 @@ begin
   try
     if Assigned(FEngine) and Params.TryGetValue<Cardinal>('id', ID) then begin
       Result.Free;
+     // FEngine.Lock;
       Result := TJSONBool.Create(FEngine.SetTargetID(ID));
+      //FEngine.UnLock;
     end;
-  except on E: Exception do TraceException('MethodSetTargetID', E); end;
+  except on E: Exception do begin
+    //FEngine.UnLock;
+    TraceException('MethodSetTargetID', E);
+    end;
+  end;
 end;
 function TCommandProcessor.MethodSetTargetByOid(Params: TJSONObject): TJSONValue;
 var
   TargetOID: Cardinal;
   i: Integer;
-  Obj: IL2Object;
+  Obj, FoundObj: IL2Live;
 begin
   Result := TJSONBool.Create(False);
+  FoundObj := nil;
   try
     if not Assigned(FEngine) or not Params.TryGetValue<Cardinal>('oid', TargetOID) then Exit;
 
@@ -785,32 +806,40 @@ begin
       Exit;
     end;
 
-    // 2. ПОИСК В NPC (Монстры, НПЦ)
-    if Assigned(FEngine.NpcList) then
-      for i := 0 to FEngine.NpcList.Count - 1 do
-      begin
-        Obj := FEngine.NpcList.Items[i];
-        if (Obj <> nil) and (Obj.OID = TargetOID) then
+    FEngine.Lock;
+    try
+      // 2. ПОИСК В NPC (Монстры, НПЦ)
+      if Assigned(FEngine.NpcList) then
+        for i := 0 to FEngine.NpcList.Count - 1 do
         begin
-          Result.Free;
-          Result := TJSONBool.Create(FEngine.SetTarget(Obj as IL2Live));
-          Exit;
+          Obj := FEngine.NpcList.Items[i];
+          if (Obj <> nil) and (Obj.OID = TargetOID) then
+          begin
+            FoundObj := Obj;
+            Break;
+          end;
         end;
-      end;
 
-    // 3. ПОИСК В CHARS (Другие игроки)
-    if Assigned(FEngine.CharList) then
-      for i := 0 to FEngine.CharList.Count - 1 do
-      begin
-        Obj := FEngine.CharList.Items[i];
-        if (Obj <> nil) and (Obj.OID = TargetOID) then
+      // 3. ПОИСК В CHARS (Другие игроки)
+      if (FoundObj = nil) and Assigned(FEngine.CharList) then
+        for i := 0 to FEngine.CharList.Count - 1 do
         begin
-          Result.Free;
-          Result := TJSONBool.Create(FEngine.SetTarget(Obj as IL2Live));
-          Exit;
+          Obj := FEngine.CharList.Items[i];
+          if (Obj <> nil) and (Obj.OID = TargetOID) then
+          begin
+            FoundObj := Obj;
+            Break;
+          end;
         end;
-      end;
+    finally
+      FEngine.UnLock;
+    end;
 
+    if FoundObj <> nil then
+    begin
+      Result.Free;
+      Result := TJSONBool.Create(FEngine.SetTarget(FoundObj));
+    end;
   except
     on E: Exception do
       TraceException('MethodSetTargetByOid', E);
@@ -872,7 +901,6 @@ var
   Range, ZLimit: Cardinal;
   Obj, Enemy: IL2Live;
   i: Integer;
-  Found: Boolean;
   Resp: TJSONObject;
 begin
   Result := TJSONNull.Create;
@@ -886,20 +914,27 @@ begin
 
     // 2. Ищем базовый объект (от которого ищем врага)
     Obj := nil;
-    if (FEngine.User <> nil) and (FEngine.User.OID = TargetOID) then Obj := FEngine.User
+    if (FEngine.User <> nil) and (FEngine.User.OID = TargetOID) then
+      Obj := FEngine.User
     else begin
-      // Ищем в NPC и игроках
-      for i := 0 to FEngine.NpcList.Count - 1 do
-        if FEngine.NpcList.Items[i].OID = TargetOID then begin
-          Obj := FEngine.NpcList.Items[i];
-          Break;
-        end;
-      if Obj = nil then
-        for i := 0 to FEngine.CharList.Count - 1 do
-          if FEngine.CharList.Items[i].OID = TargetOID then begin
-            Obj := FEngine.CharList.Items[i];
-            Break;
-          end;
+      FEngine.Lock;
+      try
+        // Ищем в NPC и игроках
+        if Assigned(FEngine.NpcList) then
+          for i := 0 to FEngine.NpcList.Count - 1 do
+            if (FEngine.NpcList.Items[i] <> nil) and (FEngine.NpcList.Items[i].OID = TargetOID) then begin
+              Obj := FEngine.NpcList.Items[i];
+              Break;
+            end;
+        if (Obj = nil) and Assigned(FEngine.CharList) then
+          for i := 0 to FEngine.CharList.Count - 1 do
+            if (FEngine.CharList.Items[i] <> nil) and (FEngine.CharList.Items[i].OID = TargetOID) then begin
+              Obj := FEngine.CharList.Items[i];
+              Break;
+            end;
+      finally
+        FEngine.UnLock;
+      end;
     end;
 
     if not Assigned(Obj) then Exit;
@@ -909,7 +944,6 @@ begin
     if FEngine.FindEnemy(Enemy, Obj, Range, ZLimit) and Assigned(Enemy) then
     begin
       Resp := TJSONObject.Create;
-      // Используем твою логику заполнения данных персонажа
       FillL2Live(Enemy, Resp);
       Result.Free;
       Result := Resp;
@@ -945,36 +979,45 @@ function TCommandProcessor.MethodIgnore(Params: TJSONObject): TJSONValue;
 var
   TargetOID: Cardinal;
   i: Integer;
-  Obj: IL2Spawn;
+  Obj, FoundObj: IL2Spawn;
 begin
-  Result := TJSONNull.Create; // Процедура ничего не возвращает
+  Result := TJSONNull.Create;
+  FoundObj := nil;
   try
     if not Assigned(FEngine) or not Params.TryGetValue<Cardinal>('oid', TargetOID) then Exit;
 
-    // Ищем объект в списках NPC или Drop, так как TL2Spawn — их предок
-    // 1. Поиск в NPC
-    if Assigned(FEngine.NpcList) then
-      for i := 0 to FEngine.NpcList.Count - 1 do
-      begin
-        Obj := FEngine.NpcList.Items[i];
-        if (Obj <> nil) and (Obj.OID = TargetOID) then
+    FEngine.Lock;
+    try
+      // Ищем объект в списках NPC или Drop
+      // 1. Поиск в NPC
+      if Assigned(FEngine.NpcList) then
+        for i := 0 to FEngine.NpcList.Count - 1 do
         begin
-          FEngine.Ignore(Obj);
-          Exit;
+          Obj := FEngine.NpcList.Items[i];
+          if (Obj <> nil) and (Obj.OID = TargetOID) then
+          begin
+            FoundObj := Obj;
+            Break;
+          end;
         end;
-      end;
 
-    // 2. Поиск в Drop
-    if Assigned(FEngine.DropList) then
-      for i := 0 to FEngine.DropList.Count - 1 do
-      begin
-        Obj := FEngine.DropList.Items[i];
-        if (Obj <> nil) and (Obj.OID = TargetOID) then
+      // 2. Поиск в Drop
+      if (FoundObj = nil) and Assigned(FEngine.DropList) then
+        for i := 0 to FEngine.DropList.Count - 1 do
         begin
-          FEngine.Ignore(Obj);
-          Exit;
+          Obj := FEngine.DropList.Items[i];
+          if (Obj <> nil) and (Obj.OID = TargetOID) then
+          begin
+            FoundObj := Obj;
+            Break;
+          end;
         end;
-      end;
+    finally
+      FEngine.UnLock;
+    end;
+
+    if FoundObj <> nil then
+      FEngine.Ignore(FoundObj);
   except
     on E: Exception do
       TraceException('MethodIgnore', E);
@@ -995,22 +1038,33 @@ function TCommandProcessor.MethodIsBusy(Params: TJSONObject): TJSONValue;
 var
   TargetOID: Cardinal;
   i: Integer;
+  FoundNpc: IL2Npc;
 begin
   Result := TJSONBool.Create(False);
+  FoundNpc := nil;
   try
     if not Assigned(FEngine) or not Assigned(FEngine.NpcList) then Exit;
     if not Params.TryGetValue<Cardinal>('oid', TargetOID) then Exit;
 
     // Ищем NPC по OID
-    for i := 0 to FEngine.NpcList.Count - 1 do
-    begin
-      if (FEngine.NpcList.Items[i] <> nil) and (FEngine.NpcList.Items[i].OID = TargetOID) then
+    FEngine.Lock;
+    try
+      for i := 0 to FEngine.NpcList.Count - 1 do
       begin
-        Result.Free;
-        // Вызываем проверку IsBusy у найденного NPC
-        Result := TJSONBool.Create(FEngine.IsBusy(FEngine.NpcList.Items[i]));
-        Exit;
+        if (FEngine.NpcList.Items[i] <> nil) and (FEngine.NpcList.Items[i].OID = TargetOID) then
+        begin
+          FoundNpc := FEngine.NpcList.Items[i];
+          Break;
+        end;
       end;
+    finally
+      FEngine.UnLock;
+    end;
+
+    if FoundNpc <> nil then
+    begin
+      Result.Free;
+      Result := TJSONBool.Create(FEngine.IsBusy(FoundNpc));
     end;
   except
     on E: Exception do
@@ -1182,9 +1236,10 @@ var
   ByPet, Force: Boolean;
   i: Integer;
   ItemList: IItemList;
-  Item: IL2Item;
+  Item, FoundItem: IL2Item;
 begin
   Result := TJSONBool.Create(False);
+  FoundItem := nil;
   try
     if not Assigned(FEngine) or (FEngine.Inventory = nil) then Exit;
 
@@ -1200,15 +1255,25 @@ begin
 
     if Assigned(ItemList) then
     begin
-      for i := 0 to ItemList.Count - 1 do
-      begin
-        Item := ItemList.Items[i];
-        if (Item <> nil) and (Item.OID = Oid) then
+      FEngine.Lock;
+      try
+        for i := 0 to ItemList.Count - 1 do
         begin
-          Result.Free;
-          Result := TJSONBool.Create(FEngine.UseItem(Item, ByPet, Force));
-          Exit;
+          Item := ItemList.Items[i];
+          if (Item <> nil) and (Item.OID = Oid) then
+          begin
+            FoundItem := Item;
+            Break;
+          end;
         end;
+      finally
+        FEngine.UnLock;
+      end;
+
+      if FoundItem <> nil then
+      begin
+        Result.Free;
+        Result := TJSONBool.Create(FEngine.UseItem(FoundItem, ByPet, Force));
       end;
     end;
   except
@@ -1261,20 +1326,30 @@ begin
 end;
 function TCommandProcessor.MethodDestroyItemByOid(Params: TJSONObject): TJSONValue;
 var Oid, Count: Cardinal; i: Integer;
-    Item: IL2Item;
+    Item, FoundItem: IL2Item;
 begin
   Result := TJSONBool.Create(False);
+  FoundItem := nil;
   try
     if not Assigned(FEngine) or (FEngine.Inventory = nil) then Exit;
     if not Params.TryGetValue<Cardinal>('oid', Oid) or not Params.TryGetValue<Cardinal>('count', Count) then Exit;
 
-    for i := 0 to FEngine.Inventory.User.Count - 1 do begin
-      Item := FEngine.Inventory.User.Items[i];
-      if (Item <> nil) and (Item.OID = Oid) then begin
-        Result.Free;
-        Result := TJSONBool.Create(FEngine.DestroyItem(Item, Count));
-        Exit;
+    FEngine.Lock;
+    try
+      for i := 0 to FEngine.Inventory.User.Count - 1 do begin
+        Item := FEngine.Inventory.User.Items[i];
+        if (Item <> nil) and (Item.OID = Oid) then begin
+          FoundItem := Item;
+          Break;
+        end;
       end;
+    finally
+      FEngine.UnLock;
+    end;
+
+    if FoundItem <> nil then begin
+      Result.Free;
+      Result := TJSONBool.Create(FEngine.DestroyItem(FoundItem, Count));
     end;
   except on E: Exception do TraceException('MethodDestroyItemByOid', E); end;
 end;
@@ -1338,22 +1413,33 @@ function TCommandProcessor.MethodCrystalItemByOid(Params: TJSONObject): TJSONVal
 var
   Oid: Cardinal;
   i: Integer;
-  Item: IL2Item;
+  Item, FoundItem: IL2Item;
 begin
   Result := TJSONBool.Create(False);
+  FoundItem := nil;
   try
     if not Assigned(FEngine) or (FEngine.Inventory = nil) then Exit;
     if not Params.TryGetValue<Cardinal>('oid', Oid) then Exit;
 
-    for i := 0 to FEngine.Inventory.User.Count - 1 do
-    begin
-      Item := FEngine.Inventory.User.Items[i];
-      if (Item <> nil) and (Item.OID = Oid) then
+    FEngine.Lock;
+    try
+      for i := 0 to FEngine.Inventory.User.Count - 1 do
       begin
-        Result.Free;
-        Result := TJSONBool.Create(FEngine.CrystalItem(Item));
-        Exit;
+        Item := FEngine.Inventory.User.Items[i];
+        if (Item <> nil) and (Item.OID = Oid) then
+        begin
+          FoundItem := Item;
+          Break;
+        end;
       end;
+    finally
+      FEngine.UnLock;
+    end;
+
+    if FoundItem <> nil then
+    begin
+      Result.Free;
+      Result := TJSONBool.Create(FEngine.CrystalItem(FoundItem));
     end;
   except
     on E: Exception do TraceException('MethodCrystalItemByOid', E);
@@ -1938,7 +2024,7 @@ begin
   Result := TJSONBool.Create(False);
   try
     if not Assigned(FEngine) then Exit;
-
+    FEngine.Lock;
     LValue := Params.Values['timeout'];
     if Assigned(LValue) then
       Timeout := Cardinal(StrToInt64Def(LValue.Value, 5000))
@@ -1947,9 +2033,12 @@ begin
 
     Result.Free;
     Result := TJSONBool.Create(FEngine.DlgOpen(Timeout));
+    FEngine.UnLock;
   except
-    on E: Exception do
+    on E: Exception do      begin
+      FEngine.UnLock;
       TraceException('MethodDlgOpen', E);
+    end;
   end;
 end;
 function TCommandProcessor.MethodDlgSel(Params: TJSONObject): TJSONValue;
@@ -2388,47 +2477,54 @@ function TCommandProcessor.MethodInZoneObj(Params: TJSONObject): TJSONValue;
 var
   OID: Integer;
   I: Integer;
-  Found: Boolean;
+  FoundObj: IL2Spawn;
 begin
   Result := TJSONBool.Create(False);
-  Found := False;
+  FoundObj := nil;
   try
     OID := StrToIntDef(Params.Values['oid'].Value, 0);
     if not Assigned(FEngine) then Exit;
 
-    for I := 0 to FEngine.NpcList.Count - 1 do
+    // Проверка User
+    if Assigned(FEngine.User) and (FEngine.User.OID = OID) then
     begin
-      if FEngine.NpcList.Items[I].OID = OID then
-      begin
-        Result.Free;
-        Result := TJSONBool.Create(FEngine.InZone(FEngine.NpcList.Items[I]));
-        Found := True;
-        Break;
-      end;
+      Result.Free;
+      Result := TJSONBool.Create(FEngine.InZone(FEngine.User));
+      Exit;
     end;
 
-    if not Found then
-    begin
-      for I := 0 to FEngine.CharList.Count - 1 do
-      begin
-        if FEngine.CharList.Items[I].OID = OID then
+    FEngine.Lock;
+    try
+      if Assigned(FEngine.NpcList) then
+        for I := 0 to FEngine.NpcList.Count - 1 do
         begin
-          Result.Free;
-          Result := TJSONBool.Create(FEngine.InZone(FEngine.CharList.Items[I]));
-          Found := True;
-          Break;
+          if (FEngine.NpcList.Items[I] <> nil) and (FEngine.NpcList.Items[I].OID = OID) then
+          begin
+            FoundObj := FEngine.NpcList.Items[I];
+            Break;
+          end;
         end;
-      end;
+
+      if (FoundObj = nil) and Assigned(FEngine.CharList) then
+        for I := 0 to FEngine.CharList.Count - 1 do
+        begin
+          if (FEngine.CharList.Items[I] <> nil) and (FEngine.CharList.Items[I].OID = OID) then
+          begin
+            FoundObj := FEngine.CharList.Items[I];
+            Break;
+          end;
+        end;
+    finally
+      FEngine.UnLock;
     end;
 
-    if not Found and (FEngine.User.OID = OID) then
+    if FoundObj <> nil then
     begin
-       Result.Free;
-       Result := TJSONBool.Create(FEngine.InZone(FEngine.User));
+      Result.Free;
+      Result := TJSONBool.Create(FEngine.InZone(FoundObj));
     end;
-
   except
-    on E: Exception do TraceException('InZoneObj_SafeCycle', E);
+    on E: Exception do TraceException('MethodInZoneObj', E);
   end;
 end;
 function TCommandProcessor.MethodGameTime(Params: TJSONObject): TJSONValue;
@@ -3281,7 +3377,14 @@ begin
 
   try
     if Assigned(FEngine) and Assigned(FEngine.NpcList) then
-      FillL2NpcList(FEngine.NpcList, jarray);
+    begin
+      FEngine.Lock;
+      try
+        FillL2NpcList(FEngine.NpcList, jarray);
+      finally
+        FEngine.UnLock;
+      end;
+    end;
     Result := jarray;
   except
     on E: Exception do
@@ -3297,43 +3400,57 @@ function TCommandProcessor.GetPetList(Params: TJSONObject): TJSONValue;
 var
   jarray: TJSONArray;
 begin
-  TraceEnter('TCommandProcessor.GetNpcList');
+  TraceEnter('TCommandProcessor.GetPetList');
   jarray := TJSONArray.Create;
 
   try
     if Assigned(FEngine) and Assigned(FEngine.PetList) then
-      FillL2PetList(FEngine.PetList, jarray);
+    begin
+      FEngine.Lock;
+      try
+        FillL2PetList(FEngine.PetList, jarray);
+      finally
+        FEngine.UnLock;
+      end;
+    end;
     Result := jarray;
   except
     on E: Exception do
     begin
-      TraceException('TCommandProcessor.GetNpcList', E);
+      TraceException('TCommandProcessor.GetPetList', E);
       jarray.Free;
       Result := TJSONArray.Create;
     end;
   end;
-  TraceLeave('TCommandProcessor.GetNpcList');
+  TraceLeave('TCommandProcessor.GetPetList');
 end;
 function TCommandProcessor.GetInventoryList(Params: TJSONObject): TJSONValue;
 var
   jarray: TJSONArray;
 begin
-  TraceEnter('TCommandProcessor.GetNpcList');
+  TraceEnter('TCommandProcessor.GetInventoryList');
   jarray := TJSONArray.Create;
 
   try
-    if Assigned(FEngine) and Assigned(FEngine.PetList) then
-      FillL2ItemList(FEngine.Inventory.User, jarray);
+    if Assigned(FEngine) and Assigned(FEngine.Inventory) then
+    begin
+      FEngine.Lock;
+      try
+        FillL2ItemList(FEngine.Inventory.User, jarray);
+      finally
+        FEngine.UnLock;
+      end;
+    end;
     Result := jarray;
   except
     on E: Exception do
     begin
-      TraceException('TCommandProcessor.GetNpcList', E);
+      TraceException('TCommandProcessor.GetInventoryList', E);
       jarray.Free;
       Result := TJSONArray.Create;
     end;
   end;
-  TraceLeave('TCommandProcessor.GetNpcList');
+  TraceLeave('TCommandProcessor.GetInventoryList');
 end;
 function TCommandProcessor.GetSkillList(Params: TJSONObject): TJSONValue;
 var jarray: TJSONArray;
@@ -3341,7 +3458,14 @@ begin
   jarray := TJSONArray.Create;
   try
     if Assigned(FEngine) and Assigned(FEngine.SkillList) then
-      FillL2SkillList(FEngine.SkillList, jarray);
+    begin
+      FEngine.Lock;
+      try
+        FillL2SkillList(FEngine.SkillList, jarray);
+      finally
+        FEngine.UnLock;
+      end;
+    end;
     Result := jarray;
   except
     on E: Exception do begin
@@ -3358,7 +3482,14 @@ begin
   jarray := TJSONArray.Create;
   try
     if Assigned(FEngine) and Assigned(FEngine.CharList) then
-      FillL2CharList(FEngine.CharList, jarray);
+    begin
+      FEngine.Lock;
+      try
+        FillL2CharList(FEngine.CharList, jarray);
+      finally
+        FEngine.UnLock;
+      end;
+    end;
     Result := jarray;
   except
     on E: Exception do
@@ -3376,7 +3507,14 @@ begin
   jarray := TJSONArray.Create;
   try
     if Assigned(FEngine) and Assigned(FEngine.DropList) then
-      FillL2DropList(FEngine.DropList, jarray);
+    begin
+      FEngine.Lock;
+      try
+        FillL2DropList(FEngine.DropList, jarray);
+      finally
+        FEngine.UnLock;
+      end;
+    end;
     Result := jarray;
   except
     on E: Exception do

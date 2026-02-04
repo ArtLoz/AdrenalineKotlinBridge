@@ -256,7 +256,7 @@ end;
 procedure FillL2User(Src: IL2User; Dest: TJSONObject);
 begin
 
-  // Проверяем указатель на nil и валидность объекта
+  // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅ nil пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ
   if (Src = nil) then
   begin
     TraceError('FillL2User', 'Source object is NIL');
@@ -571,14 +571,19 @@ procedure FillL2BuffList(Src: IBuffList; Dest: TJSONArray);
 var
   I: Integer;
   BuffObj: TJSONObject;
+  Item: IL2Buff;
 begin
   if (Src = nil) or (Dest = nil) then Exit;
   try
     for I := 0 to Src.Count - 1 do
     begin
-      BuffObj := TJSONObject.Create;
-      FillL2Buff(Src.Items[I], BuffObj);
-      Dest.AddElement(BuffObj);
+      Item := Src.Items[I];
+      if Item <> nil then
+      begin
+        BuffObj := TJSONObject.Create;
+        FillL2Buff(Item, BuffObj);
+        Dest.AddElement(BuffObj);
+      end;
     end;
   except
     on E: Exception do
@@ -590,14 +595,19 @@ procedure FillL2ItemList(Src: IL2List; Dest: TJSONArray);
 var
   I: Integer;
   ItemObj: TJSONObject;
+  Item: IL2Item;
 begin
   if (Src = nil) or (Dest = nil) then Exit;
   try
     for I := 0 to Src.Count - 1 do
     begin
-      ItemObj := TJSONObject.Create;
-      FillL2Item(IL2Item(Src.Items[I]), ItemObj);
-      Dest.AddElement(ItemObj);
+      Item := IL2Item(Src.Items[I]);
+      if (Item <> nil) and Item.Valid then
+      begin
+        ItemObj := TJSONObject.Create;
+        FillL2Item(Item, ItemObj);
+        Dest.AddElement(ItemObj);
+      end;
     end;
   except
     on E: Exception do
