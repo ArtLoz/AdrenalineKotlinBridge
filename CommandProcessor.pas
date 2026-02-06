@@ -388,11 +388,18 @@ function TCommandProcessor.MethodGetMe(Params: TJSONObject): TJSONValue;
 var
   Obj: TJSONObject;
 begin
-  // TraceEnter('MethodGetMe'); // Можно включить для детальной отладки
+  Trace('[MethodGetMe] START');
   try
+    if not Assigned(FEngine) then begin Trace('[MethodGetMe] FEngine is NIL!'); Result := nil; Exit; end;
+    Trace('[MethodGetMe] >> Getting User');
+    if not Assigned(FEngine.User) then begin Trace('[MethodGetMe] FEngine.User is NIL!'); Result := nil; Exit; end;
+    Trace('[MethodGetMe] >> User OK, creating JSON obj');
     Obj := TJSONObject.Create;
+    Trace('[MethodGetMe] >> Calling FillL2User');
     FillL2User(FEngine.User, Obj);
+    Trace('[MethodGetMe] >> FillL2User returned OK');
     Result := Obj;
+    Trace('[MethodGetMe] DONE');
   except
     on E: Exception do
     begin
@@ -427,7 +434,7 @@ begin
 
     MoveResult := FEngine.MoveTo(X, Y, Z);
 
-    Result.Free;
+    Result.Free; Result := nil;
     Result := TJSONBool.Create(MoveResult);
   except
     on E: Exception do
@@ -453,7 +460,7 @@ begin
   if Assigned(FEngine.User) and (FEngine.User.OID = TargetOID) then
   begin
     Trace('MoveToByOid: Target is Self (' + IntToStr(TargetOID) + '). Skipping move.');
-    Result.Free;
+    Result.Free; Result := nil;
     Result := TJSONBool.Create(True); // Считаем действие выполненным (мы уже тут)
     Exit;
   end;
@@ -506,7 +513,7 @@ begin
     if IsFound and (Obj <> nil) then
     begin
       FEngine.MoveTo(Obj as IL2Spawn, Delta);
-      Result.Free;
+      Result.Free; Result := nil;
       Result := TJSONBool.Create(True);
     end
     else
@@ -543,7 +550,7 @@ begin
       // Метод MoveTo обычно возвращает Boolean, используем его для результата
       if FEngine.MoveTo(TargetObj, Delta) then
       begin
-        Result.Free;
+        Result.Free; Result := nil;
         Result := TJSONBool.Create(True);
       end;
     end
@@ -572,7 +579,7 @@ begin
       Res := FEngine.Unstuck;
 
       // Пересоздаем JSON-результат на основе того, что вернул движок
-      Result.Free;
+      Result.Free; Result := nil;
       Result := TJSONBool.Create(Res);
     end;
   except
@@ -602,7 +609,7 @@ begin
 
     Success := FEngine.GoHome(RestartType);
 
-    Result.Free;
+    Result.Free; Result := nil;
     Result := TJSONBool.Create(Success);
   except
     on E: Exception do
@@ -628,7 +635,7 @@ begin
     // Вызываем оригинальную функцию движка
     Success := FEngine.Teleport(TeleportID);
 
-    Result.Free;
+    Result.Free; Result := nil;
     Result := TJSONBool.Create(Success);
 
   except
@@ -659,7 +666,7 @@ begin
     // Вызов движка
     Success := FEngine.UseAction(ActionID, Force, Shift);
 
-    Result.Free;
+    Result.Free; Result := nil;
     Result := TJSONBool.Create(Success);
   except
     on E: Exception do
@@ -685,7 +692,7 @@ begin
     // Вызываем метод движка
     Success := FEngine.ForceAtk(PauseTime, Force);
 
-    Result.Free;
+    Result.Free; Result := nil;
     Result := TJSONBool.Create(Success);
   except
     on E: Exception do
@@ -725,7 +732,7 @@ begin
 
     if FoundItem <> nil then
     begin
-      Result.Free;
+      Result.Free; Result := nil;
       Result := TJSONBool.Create(FEngine.PickUp(FoundItem, ByPet));
     end;
   except
@@ -739,7 +746,7 @@ begin
   try
     if Assigned(FEngine) then
     begin
-      Result.Free;
+      Result.Free; Result := nil;
       Result := TJSONBool.Create(FEngine.Stand);
     end;
   except
@@ -753,7 +760,7 @@ begin
   try
     if Assigned(FEngine) then
     begin
-      Result.Free;
+      Result.Free; Result := nil;
       Result := TJSONBool.Create(FEngine.Sit);
     end;
   except
@@ -767,7 +774,7 @@ begin
   Result := TJSONBool.Create(False);
   try
     if Assigned(FEngine) and Params.TryGetValue<string>('name', Name) then begin
-      Result.Free;
+      Result.Free; Result := nil;
       Result := TJSONBool.Create(FEngine.SetTarget(Name));
     end;
   except on E: Exception do TraceException('MethodSetTarget', E); end;
@@ -778,7 +785,7 @@ begin
   Result := TJSONBool.Create(False);
   try
     if Assigned(FEngine) and Params.TryGetValue<Cardinal>('id', ID) then begin
-      Result.Free;
+      Result.Free; Result := nil;
      // FEngine.Lock;
       Result := TJSONBool.Create(FEngine.SetTargetID(ID));
       //FEngine.UnLock;
@@ -803,7 +810,7 @@ begin
     // 1. ПРОВЕРКА НА СЕБЯ (User)
     if Assigned(FEngine.User) and (FEngine.User.OID = TargetOID) then
     begin
-      Result.Free;
+      Result.Free; Result := nil;
       Result := TJSONBool.Create(FEngine.SetTarget(FEngine.User));
       Exit;
     end;
@@ -839,7 +846,7 @@ begin
 
     if FoundObj <> nil then
     begin
-      Result.Free;
+      Result.Free; Result := nil;
       Result := TJSONBool.Create(FEngine.SetTarget(FoundObj));
     end;
   except
@@ -861,7 +868,7 @@ begin
     if not Params.TryGetValue<Boolean>('force', Force) then Force := False;
 
     // Используем прямую перегрузку Engine.Action(OID, Force)
-    Result.Free;
+    Result.Free; Result := nil;
     Result := TJSONBool.Create(FEngine.Action(TargetOID, Force));
   except
     on E: Exception do
@@ -874,7 +881,7 @@ begin
   try
     if Assigned(FEngine) then
     begin
-      Result.Free;
+      Result.Free; Result := nil;
       Result := TJSONBool.Create(FEngine.CancelTarget);
     end;
   except
@@ -890,7 +897,7 @@ begin
   try
     if not Assigned(FEngine) or not Params.TryGetValue<string>('name', TargetName) then Exit;
 
-    Result.Free;
+    Result.Free; Result := nil;
     Result := TJSONBool.Create(FEngine.Assist(TargetName));
   except
     on E: Exception do
@@ -947,7 +954,7 @@ begin
     begin
       Resp := TJSONObject.Create;
       FillL2Live(Enemy, Resp);
-      Result.Free;
+      Result.Free; Result := nil;
       Result := Resp;
     end;
 
@@ -970,7 +977,7 @@ begin
     if not Params.TryGetValue<Cardinal>('z_limit', ZLimit) then ZLimit := 300;
     if not Params.TryGetValue<Boolean>('not_busy', NotBusy) then NotBusy := True;
 
-    Result.Free;
+    Result.Free; Result := nil;
     Result := TJSONBool.Create(FEngine.AutoTarget(Range, ZLimit, NotBusy));
   except
     on E: Exception do
@@ -1065,7 +1072,7 @@ begin
 
     if FoundNpc <> nil then
     begin
-      Result.Free;
+      Result.Free; Result := nil;
       Result := TJSONBool.Create(FEngine.IsBusy(FoundNpc));
     end;
   except
@@ -1089,7 +1096,7 @@ begin
     if not Params.TryGetValue<Boolean>('force', Force) then Force := False;
     if not Params.TryGetValue<Boolean>('shift', Shift) then Shift := False;
 
-    Result.Free;
+    Result.Free; Result := nil;
     // Вызываем оригинальный метод движка
     Result := TJSONBool.Create(FEngine.UseSkill(SkillID, Force, Shift));
   except
@@ -1111,7 +1118,7 @@ begin
     if not Params.TryGetValue<Boolean>('force', Force) then Force := False;
     if not Params.TryGetValue<Boolean>('shift', Shift) then Shift := False;
 
-    Result.Free;
+    Result.Free; Result := nil;
     // Прямой вызов метода движка
     Result := TJSONBool.Create(FEngine.DUseSkill(SkillID, Force, Shift));
   except
@@ -1139,7 +1146,7 @@ begin
     if not Params.TryGetValue<Boolean>('force', Force) then Force := False;
     if not Params.TryGetValue<Boolean>('shift', Shift) then Shift := False;
 
-    Result.Free;
+    Result.Free; Result := nil;
     Result := TJSONBool.Create(FEngine.UseSkillGround(SkillID, X, Y, Z, Force, Shift));
   except
     on E: Exception do
@@ -1152,7 +1159,7 @@ begin
   try
     if Assigned(FEngine) then
     begin
-      Result.Free;
+      Result.Free; Result := nil;
       Result := TJSONBool.Create(FEngine.StopCasting);
     end;
   except
@@ -1170,7 +1177,7 @@ begin
 
     if not Params.TryGetValue<Cardinal>('id', SkillID) then Exit;
 
-    Result.Free;
+    Result.Free; Result := nil;
     Result := TJSONBool.Create(FEngine.Dispel(SkillID));
   except
     on E: Exception do
@@ -1187,7 +1194,7 @@ begin
 
     if not Params.TryGetValue<Cardinal>('id', SkillID) then Exit;
 
-    Result.Free;
+    Result.Free; Result := nil;
     Result := TJSONBool.Create(FEngine.LearnSkill(SkillID));
   except
     on E: Exception do
@@ -1200,7 +1207,7 @@ begin
   try
     if Assigned(FEngine) then
     begin
-      Result.Free;
+      Result.Free; Result := nil;
       Result := TJSONBool.Create(FEngine.UpdateSkillList);
     end;
   except
@@ -1216,7 +1223,7 @@ begin
     if not Assigned(FEngine) or not Params.TryGetValue<string>('name', Name) then Exit;
     Params.TryGetValue<Boolean>('by_pet', ByPet);
     Params.TryGetValue<Boolean>('force', Force);
-    Result.Free;
+    Result.Free; Result := nil;
     Result := TJSONBool.Create(FEngine.UseItem(Name, ByPet, Force));
   except on E: Exception do TraceException('MethodUseItemByName', E); end;
 end;
@@ -1228,7 +1235,7 @@ begin
     if not Assigned(FEngine) or not Params.TryGetValue<Cardinal>('id', ID) then Exit;
     Params.TryGetValue<Boolean>('by_pet', ByPet);
     Params.TryGetValue<Boolean>('force', Force);
-    Result.Free;
+    Result.Free; Result := nil;
     Result := TJSONBool.Create(FEngine.UseItem(ID, ByPet, Force));
   except on E: Exception do TraceException('MethodUseItemByID', E); end;
 end;
@@ -1274,7 +1281,7 @@ begin
 
       if FoundItem <> nil then
       begin
-        Result.Free;
+        Result.Free; Result := nil;
         Result := TJSONBool.Create(FEngine.UseItem(FoundItem, ByPet, Force));
       end;
     end;
@@ -1296,7 +1303,7 @@ begin
     if not Params.TryGetValue<Boolean>('by_pet', ByPet) then ByPet := False;
     if not Params.TryGetValue<Boolean>('force', Force) then Force := False;
 
-    Result.Free;
+    Result.Free; Result := nil;
     // Прямой вызов перегруженного метода движка по OID
     Result := TJSONBool.Create(FEngine.UseItemOID(OID, ByPet, Force));
   except
@@ -1310,7 +1317,7 @@ begin
   Result := TJSONBool.Create(False);
   try
     if Assigned(FEngine) and Params.TryGetValue<string>('name', Name) and Params.TryGetValue<Cardinal>('count', Count) then begin
-      Result.Free;
+      Result.Free; Result := nil;
       Result := TJSONBool.Create(FEngine.DestroyItem(Name, Count));
     end;
   except on E: Exception do TraceException('MethodDestroyItemByName', E); end;
@@ -1321,7 +1328,7 @@ begin
   Result := TJSONBool.Create(False);
   try
     if Assigned(FEngine) and Params.TryGetValue<Integer>('id', ID) and Params.TryGetValue<Cardinal>('count', Count) then begin
-      Result.Free;
+      Result.Free; Result := nil;
       Result := TJSONBool.Create(FEngine.DestroyItem(ID, Count));
     end;
   except on E: Exception do TraceException('MethodDestroyItemByID', E); end;
@@ -1350,7 +1357,7 @@ begin
     end;
 
     if FoundItem <> nil then begin
-      Result.Free;
+      Result.Free; Result := nil;
       Result := TJSONBool.Create(FEngine.DestroyItem(FoundItem, Count));
     end;
   except on E: Exception do TraceException('MethodDestroyItemByOid', E); end;
@@ -1371,7 +1378,7 @@ begin
     if not Params.TryGetValue<Integer>('y', Y) then Exit;
     if not Params.TryGetValue<Integer>('z', Z) then Exit;
 
-    Result.Free;
+    Result.Free; Result := nil;
     Result := TJSONBool.Create(FEngine.DropItem(ItemID, Count, X, Y, Z));
   except
     on E: Exception do
@@ -1389,7 +1396,7 @@ begin
     // Извлекаем индекс рецепта
     if not Params.TryGetValue<Cardinal>('index', Index) then Exit;
 
-    Result.Free;
+    Result.Free; Result := nil;
     Result := TJSONBool.Create(FEngine.MakeItem(Index));
   except
     on E: Exception do
@@ -1404,7 +1411,7 @@ begin
   try
     if Assigned(FEngine) and Params.TryGetValue<Cardinal>('id', ItemID) then
     begin
-      Result.Free;
+      Result.Free; Result := nil;
       Result := TJSONBool.Create(FEngine.CrystalItem(ItemID));
     end;
   except
@@ -1440,7 +1447,7 @@ begin
 
     if FoundItem <> nil then
     begin
-      Result.Free;
+      Result.Free; Result := nil;
       Result := TJSONBool.Create(FEngine.CrystalItem(FoundItem));
     end;
   except
@@ -1462,7 +1469,7 @@ begin
     if not Params.TryGetValue<Cardinal>('count', Count) then Exit;
     if not Params.TryGetValue<Boolean>('to_pet', ToPet) then ToPet := False;
 
-    Result.Free;
+    Result.Free; Result := nil;
     // Вызываем метод движка
     Result := TJSONBool.Create(FEngine.MoveItem(ItemName, Count, ToPet));
   except
@@ -1500,7 +1507,7 @@ begin
       IDList[i] := Cardinal(StrToIntDef(JSArray.Items[i].Value, 0));
     end;
 
-    Result.Free;
+    Result.Free; Result := nil;
     Result := TJSONBool.Create(FEngine.LoadItems(ToWH, IDList));
   except
     on E: Exception do
@@ -1529,7 +1536,7 @@ begin
     else
       IsActive := False;
 
-    Result.Free;
+    Result.Free; Result := nil;
     Result := TJSONBool.Create(FEngine.AutoSoulShot(ItemName, IsActive));
   except
     on E: Exception do
@@ -1558,7 +1565,7 @@ begin
     else
       IsActive := False;
 
-    Result.Free;
+    Result.Free; Result := nil;
     Result := TJSONBool.Create(FEngine.DAutoSoulShot(ItemID, IsActive));
   except
     on E: Exception do
@@ -1579,7 +1586,7 @@ begin
     if Assigned(LValue) then
     begin
       ItemName := LValue.Value;
-      Result.Free;
+      Result.Free; Result := nil;
       // Вызываем метод движка и возвращаем число
       Result := TJSONNumber.Create(FEngine.Equipped(ItemName));
     end;
@@ -1594,7 +1601,7 @@ begin
   try
     if Assigned(FEngine) then
     begin
-      Result.Free;
+      Result.Free; Result := nil;
       Result := TJSONBool.Create(FEngine.DismissPet);
     end;
   except
@@ -1608,7 +1615,7 @@ begin
   try
     if Assigned(FEngine) then
     begin
-      Result.Free;
+      Result.Free; Result := nil;
       Result := TJSONBool.Create(FEngine.DismissSum);
     end;
   except
@@ -1638,7 +1645,7 @@ begin
     LValue := Params.Values['player_name'];
     if Assigned(LValue) then PlayerName := LValue.Value else PlayerName := '';
 
-    Result.Free;
+    Result.Free; Result := nil;
     Result := TJSONBool.Create(FEngine.Say(Text, ChatType, PlayerName));
   except
     on E: Exception do
@@ -1666,7 +1673,7 @@ begin
     else
       LootIdx := 0;
 
-    Result.Free;
+    Result.Free; Result := nil;
     // Приводим Integer к типу перечисления TLootType
     Result := TJSONBool.Create(FEngine.InviteParty(PlayerName, TLootType(LootIdx)));
   except
@@ -1687,7 +1694,7 @@ begin
     if Assigned(LValue) then
     begin
       PlayerName := LValue.Value;
-      Result.Free;
+      Result.Free; Result := nil;
       Result := TJSONBool.Create(FEngine.DismissParty(PlayerName));
     end;
   except
@@ -1711,7 +1718,7 @@ begin
     else
       Accept := False;
 
-    Result.Free;
+    Result.Free; Result := nil;
     Result := TJSONBool.Create(FEngine.JoinParty(Accept));
   except
     on E: Exception do
@@ -1724,7 +1731,7 @@ begin
   try
     if Assigned(FEngine) then
     begin
-      Result.Free;
+      Result.Free; Result := nil;
       Result := TJSONBool.Create(FEngine.LeaveParty);
     end;
   except
@@ -1746,7 +1753,7 @@ begin
     if Assigned(LValue) then
     begin
       PlayerName := LValue.Value;
-      Result.Free;
+      Result.Free; Result := nil;
       Result := TJSONBool.Create(FEngine.SetPartyLeader(PlayerName));
     end;
   except
@@ -1760,7 +1767,7 @@ begin
   try
     if Assigned(FEngine) then
     begin
-      Result.Free;
+      Result.Free; Result := nil;
       Result := TJSONString.Create(FEngine.GetMentor);
     end;
   except
@@ -1774,7 +1781,7 @@ begin
   try
     if Assigned(FEngine) then
     begin
-      Result.Free;
+      Result.Free; Result := nil;
       Result := TJSONBool.Create(FEngine.KickMentor);
     end;
   except
@@ -1788,7 +1795,7 @@ begin
   try
     if Assigned(FEngine) then
     begin
-      Result.Free;
+      Result.Free; Result := nil;
       Result := TJSONBool.Create(FEngine.CloseRoom);
     end;
   except
@@ -1818,7 +1825,7 @@ begin
     LValue := Params.Values['max_level'];
     if Assigned(LValue) then MaxLv := StrToIntDef(LValue.Value, 99) else MaxLv := 99;
 
-    Result.Free;
+    Result.Free; Result := nil;
     Result := TJSONBool.Create(FEngine.CreateRoom(Caption, MinLv, MaxLv));
   except
     on E: Exception do
@@ -1850,7 +1857,7 @@ begin
   try
     if not Assigned(FEngine) then
     begin
-      Result.Free;
+      Result.Free; Result := nil;
       Result := TJSONBool.Create(False);
       Exit;
     end;
@@ -1875,7 +1882,7 @@ begin
   try
     if not Assigned(FEngine) then
     begin
-      Result.Free;
+      Result.Free; Result := nil;
       Result := TJSONBool.Create(False);
       Exit;
     end;
@@ -1904,7 +1911,7 @@ begin
     if Assigned(LValue) then
     begin
       QuestID := Cardinal(StrToInt64Def(LValue.Value, 0));
-      Result.Free;
+      Result.Free; Result := nil;
       Result := TJSONNumber.Create(FEngine.QuestStatus2(QuestID));
     end;
   except
@@ -1928,7 +1935,7 @@ begin
     if not Assigned(LValue) then Exit;
     Stage := Cardinal(StrToInt64Def(LValue.Value, 0));
 
-    Result.Free;
+    Result.Free; Result := nil;
     Result := TJSONBool.Create(FEngine.QuestStatus(QuestID, Stage));
   except
     on E: Exception do TraceException('MethodQuestStatusCheckStage', E);
@@ -1947,7 +1954,7 @@ begin
     if Assigned(LValue) then
     begin
       QuestID := StrToIntDef(LValue.Value, 0);
-      Result.Free;
+      Result.Free; Result := nil;
       Result := TJSONBool.Create(FEngine.CancelQuest(QuestID));
     end;
   except
@@ -1961,7 +1968,7 @@ begin
   try
     if Assigned(FEngine) then
     begin
-      Result.Free;
+      Result.Free; Result := nil;
       Result := TJSONBool.Create(FEngine.OpenQuestion);
     end;
   except
@@ -1975,7 +1982,7 @@ begin
   try
     if Assigned(FEngine) then
     begin
-      Result.Free;
+      Result.Free; Result := nil;
       Result := TJSONBool.Create(FEngine.GetDailyItems);
     end;
   except
@@ -1996,7 +2003,7 @@ begin
     if Assigned(LValue) then
     begin
       ItemID := Cardinal(StrToInt64Def(LValue.Value, 0));
-      Result.Free;
+      Result.Free; Result := nil;
       Result := TJSONBool.Create(FEngine.GetDailyItem(ItemID));
     end;
   except
@@ -2010,7 +2017,7 @@ begin
   try
     if Assigned(FEngine) then
     begin
-      Result.Free;
+      Result.Free; Result := nil;
       Result := TJSONBool.Create(FEngine.UpdateDailyList);
     end;
   except
@@ -2033,7 +2040,7 @@ begin
     else
       Timeout := 5000;
 
-    Result.Free;
+    Result.Free; Result := nil;
     Result := TJSONBool.Create(FEngine.DlgOpen(Timeout));
    // FEngine.UnLock;
   except
@@ -2056,7 +2063,7 @@ begin
     if Assigned(LValue) then
     begin
       Index := StrToIntDef(LValue.Value, 0);
-      Result.Free;
+      Result.Free; Result := nil;
       Result := TJSONBool.Create(FEngine.DlgSel(Index));
     end;
   except
@@ -2086,7 +2093,7 @@ begin
     else
       Timeout := 1000;
 
-    Result.Free;
+    Result.Free; Result := nil;
     Result := TJSONBool.Create(FEngine.DlgSel(Caption, Timeout));
   except
     on E: Exception do
@@ -2106,7 +2113,7 @@ begin
     if Assigned(LValue) then
     begin
       BypassText := LValue.Value;
-      Result.Free;
+      Result.Free; Result := nil;
       Result := TJSONBool.Create(FEngine.BypassToServer(BypassText));
     end;
   except
@@ -2120,7 +2127,7 @@ begin
   try
     if Assigned(FEngine) then
     begin
-      Result.Free;
+      Result.Free; Result := nil;
       Result := TJSONString.Create(FEngine.DlgText);
     end;
   except
@@ -2134,7 +2141,7 @@ begin
   try
     if Assigned(FEngine) then
     begin
-      Result.Free;
+      Result.Free; Result := nil;
       Result := TJSONNumber.Create(FEngine.DlgTime);
     end;
   except
@@ -2148,7 +2155,7 @@ begin
   try
     if Assigned(FEngine) then
     begin
-      Result.Free;
+      Result.Free; Result := nil;
       Result := TJSONString.Create(FEngine.CBText);
     end;
   except
@@ -2162,7 +2169,7 @@ begin
   try
     if Assigned(FEngine) then
     begin
-      Result.Free;
+      Result.Free; Result := nil;
       Result := TJSONNumber.Create(FEngine.CBTime);
     end;
   except
@@ -2176,7 +2183,7 @@ begin
   try
     if Assigned(FEngine) then
     begin
-      Result.Free;
+      Result.Free; Result := nil;
       Result := TJSONString.Create(FEngine.HlpText);
     end;
   except
@@ -2190,7 +2197,7 @@ begin
   try
     if Assigned(FEngine) then
     begin
-      Result.Free;
+      Result.Free; Result := nil;
       Result := TJSONNumber.Create(FEngine.HlpTime);
     end;
   except
@@ -2210,7 +2217,7 @@ begin
       Dlg := FEngine.ConfirmDlg;
       if Dlg.Valid then
       begin
-        Result.Free;
+        Result.Free; Result := nil;
         ResObj := TJSONObject.Create;
         FillL2ConfirmDlg(Dlg, ResObj);
         Result := ResObj;
@@ -2229,7 +2236,7 @@ begin
   try
     if Assigned(FEngine) and Params.TryGetValue('accept', Accept) then
     begin
-      Result.Free;
+      Result.Free; Result := nil;
       Result := TJSONBool.Create(FEngine.ConfirmDialog(Accept));
     end;
   except
@@ -2256,7 +2263,7 @@ begin
     StoreType := Byte(StrToIntDef(Params.Values['store_type'].Value, 1));
     StoreCaption := Params.Values['caption'].Value;
 
-    Result.Free;
+    Result.Free; Result := nil;
     Result := TJSONBool.Create(FEngine.OpenPrivateStore(List, StoreType, StoreCaption));
   except
     on E: Exception do
@@ -2285,7 +2292,7 @@ begin
       for I := 0 to ItemsArray.Count - 1 do
         List[I] := Cardinal(StrToInt64Def(ItemsArray.Items[I].Value, 0));
 
-      Result.Free;
+      Result.Free; Result := nil;
       Result := TJSONBool.Create(FEngine.NpcTrade(Sell, List));
     end;
   except
@@ -2316,7 +2323,7 @@ begin
     LValue := Params.Values['by_index'];
     ByIndex := Assigned(LValue) and (LValue is TJSONTrue);
 
-    Result.Free;
+    Result.Free; Result := nil;
     Result := TJSONBool.Create(FEngine.NpcExchange(IDorIndex, Count, ByIndex));
   except
     on E: Exception do
@@ -2336,7 +2343,7 @@ begin
     if Assigned(LValue) then
     begin
       TownID := Cardinal(StrToInt64Def(LValue.Value, 0));
-      Result.Free;
+      Result.Free; Result := nil;
       Result := TJSONNumber.Create(FEngine.CastleTax(TownID));
     end;
   except
@@ -2370,7 +2377,7 @@ begin
 
     Price := Cardinal(StrToInt64Def(Params.Values['price'].Value, 0));
 
-    Result.Free;
+    Result.Free; Result := nil;
     Result := TJSONBool.Create(FEngine.SendMail(Receiver, Topic, MailText, List, Price));
   except
     on E: Exception do
@@ -2394,7 +2401,7 @@ begin
     if Assigned(LValue) then MaxCount := Cardinal(StrToInt64Def(LValue.Value, 1000))
     else MaxCount := 1000;
 
-    Result.Free;
+    Result.Free; Result := nil;
     Result := TJSONBool.Create(FEngine.GetMailItems(MaxLoad, MaxCount));
   except
     on E: Exception do
@@ -2412,7 +2419,7 @@ begin
     begin
       Zone := FEngine.GetZoneType;
       ZoneName := GetEnumName(TypeInfo(TZoneType), Ord(Zone));
-      Result.Free;
+      Result.Free; Result := nil;
       Result := TJSONString.Create(ZoneName);
     end;
   except
@@ -2432,7 +2439,7 @@ begin
     Y := StrToIntDef(Params.Values['y'].Value, 0);
     Z := StrToIntDef(Params.Values['z'].Value, 0);
 
-    Result.Free;
+    Result.Free; Result := nil;
 
     Result := TJSONString.Create(FEngine.GetZoneName(X, Y, Z));
   except
@@ -2452,7 +2459,7 @@ begin
     Y := StrToIntDef(Params.Values['y'].Value, 0);
     Z := StrToIntDef(Params.Values['z'].Value, 0);
 
-    Result.Free;
+    Result.Free; Result := nil;
 
     Result := TJSONNumber.Create(FEngine.GetZoneID(X, Y, Z));
   except
@@ -2470,7 +2477,7 @@ begin
     Z := StrToIntDef(Params.Values['z'].Value, 0);
     if Assigned(FEngine) then
     begin
-      Result.Free;
+      Result.Free; Result := nil;
       Result := TJSONBool.Create(FEngine.InZone(X, Y, Z));
     end;
   except on E: Exception do TraceException('InZoneXYZ', E); end;
@@ -2490,7 +2497,7 @@ begin
     // Проверка User
     if Assigned(FEngine.User) and (FEngine.User.OID = OID) then
     begin
-      Result.Free;
+      Result.Free; Result := nil;
       Result := TJSONBool.Create(FEngine.InZone(FEngine.User));
       Exit;
     end;
@@ -2522,7 +2529,7 @@ begin
 
     if FoundObj <> nil then
     begin
-      Result.Free;
+      Result.Free; Result := nil;
       Result := TJSONBool.Create(FEngine.InZone(FoundObj));
     end;
   except
@@ -2535,7 +2542,7 @@ begin
   try
     if Assigned(FEngine) then
     begin
-      Result.Free;
+      Result.Free; Result := nil;
       Result := TJSONNumber.Create(FEngine.GameTime);
     end;
   except
@@ -2549,7 +2556,7 @@ begin
   try
     if Assigned(FEngine) then
     begin
-      Result.Free;
+      Result.Free; Result := nil;
       Result := TJSONBool.Create(FEngine.IsDay);
     end;
   except
@@ -2568,7 +2575,7 @@ begin
     begin
       LStatus := FEngine.Status;
       StatusName := GetEnumName(TypeInfo(TL2Status), Ord(LStatus));
-      Result.Free;
+      Result.Free; Result := nil;
       Result := TJSONString.Create(StatusName);
     end;
   except
@@ -2582,7 +2589,7 @@ begin
   try
     if Assigned(FEngine) then
     begin
-      Result.Free;
+      Result.Free; Result := nil;
       Result := TJSONNumber.Create(FEngine.LoginStatus);
     end;
   except
@@ -2601,7 +2608,7 @@ begin
     Login := Params.Values['login'].Value;
     Password := Params.Values['password'].Value;
 
-    Result.Free;
+    Result.Free; Result := nil;
     Result := TJSONBool.Create(FEngine.AuthLogin(Login, Password));
   except
     on E: Exception do
@@ -2623,7 +2630,7 @@ begin
     else
       CharIndex := -1;
 
-    Result.Free;
+    Result.Free; Result := nil;
     Result := TJSONBool.Create(FEngine.GameStart(CharIndex));
   except
     on E: Exception do
@@ -2636,7 +2643,7 @@ begin
   try
     if Assigned(FEngine) then
     begin
-      Result.Free;
+      Result.Free; Result := nil;
       Result := TJSONBool.Create(FEngine.Restart);
     end;
   except
@@ -2650,7 +2657,7 @@ begin
   try
     if Assigned(FEngine) then
     begin
-      Result.Free;
+      Result.Free; Result := nil;
       Result := TJSONBool.Create(FEngine.DRestart);
     end;
   except
@@ -2673,7 +2680,7 @@ begin
     LValue := Params.Values['active'];
     Active := Assigned(LValue) and (LValue is TJSONTrue);
 
-    Result.Free;
+    Result.Free; Result := nil;
     Result := TJSONBool.Create(FEngine.FaceControl(ID, Active));
   except
     on E: Exception do
@@ -2689,7 +2696,7 @@ begin
     if Assigned(FEngine) then
     begin
       ID := StrToIntDef(Params.Values['id'].Value, 0);
-      Result.Free;
+      Result.Free; Result := nil;
       Result := TJSONBool.Create(FEngine.GetFaceState(ID));
     end;
   except
@@ -2709,7 +2716,7 @@ begin
     LValue := Params.Values['wait'];
     Wait := Assigned(LValue) and (LValue is TJSONTrue);
 
-    Result.Free;
+    Result.Free; Result := nil;
     Result := TJSONBool.Create(FEngine.UpdateCfg(Wait));
   except
     on E: Exception do
@@ -2726,7 +2733,7 @@ begin
 
     FilePath := Params.Values['file_path'].Value;
 
-    Result.Free;
+    Result.Free; Result := nil;
     Result := TJSONBool.Create(FEngine.LoadConfig(FilePath));
   except
     on E: Exception do
@@ -2743,7 +2750,7 @@ begin
 
     FilePath := Params.Values['file_path'].Value;
 
-    Result.Free;
+    Result.Free; Result := nil;
     Result := TJSONBool.Create(FEngine.LoadZone(FilePath));
   except
     on E: Exception do
@@ -2757,7 +2764,7 @@ begin
     if Assigned(FEngine) then
     begin
       FEngine.ClearZone;
-      Result.Free;
+      Result.Free; Result := nil;
       Result := TJSONBool.Create(True);
     end;
   except
@@ -2775,7 +2782,7 @@ begin
 
     Level := Cardinal(StrToInt64Def(Params.Values['level'].Value, 1));
 
-    Result.Free;
+    Result.Free; Result := nil;
     Result := TJSONBool.Create(FEngine.SetPerform(Level));
   except
     on E: Exception do
@@ -2793,7 +2800,7 @@ begin
       Dist := StrToIntDef(Params.Values['dist'].Value, 50);
       FEngine.SetMapKeepDist(Dist);
 
-      Result.Free;
+      Result.Free; Result := nil;
       Result := TJSONBool.Create(True);
     end;
   except
@@ -2819,7 +2826,7 @@ begin
     LValue := Params.Values['chat_type'];
     if Assigned(LValue) then ChatType := StrToIntDef(LValue.Value, 0) else ChatType := 0;
 
-    Result.Free;
+    Result.Free; Result := nil;
     Result := TJSONBool.Create(FEngine.GamePrint(MsgText, Author, ChatType));
   except
     on E: Exception do
@@ -2832,7 +2839,7 @@ begin
   try
     if Assigned(FEngine) then
     begin
-      Result.Free;
+      Result.Free; Result := nil;
       Result := TJSONBool.Create(FEngine.GameClose);
     end;
   except
@@ -2852,7 +2859,7 @@ begin
     LValue := Params.Values['game'];
     TargetGame := not (Assigned(LValue) and (LValue is TJSONFalse));
 
-    Result.Free;
+    Result.Free; Result := nil;
     Result := TJSONBool.Create(FEngine.BlinkWindow(TargetGame));
   except
     on E: Exception do
@@ -2872,7 +2879,7 @@ begin
 
     Show := not (Assigned(LValue) and (LValue is TJSONFalse));
 
-    Result.Free;
+    Result.Free; Result := nil;
     Result := TJSONBool.Create(FEngine.SetGameWindow(Show));
   except
     on E: Exception do
@@ -2894,7 +2901,7 @@ begin
     DownUp := 0;
     if Assigned(LDownUp) then DownUp := StrToIntDef(LDownUp.Value, 0);
 
-    Result.Free;
+    Result.Free; Result := nil;
 
 
     if LValue is TJSONString then
@@ -2917,7 +2924,7 @@ begin
 
     LText := Params.Values['text'].Value;
 
-    Result.Free;
+    Result.Free; Result := nil;
     Result := TJSONBool.Create(FEngine.EnterText(LText));
   except
     on E: Exception do
@@ -2937,7 +2944,7 @@ begin
     WParam := StrToIntDef(Params.Values['w_param'].Value, 0);
     LParam := StrToIntDef(Params.Values['l_param'].Value, 0);
 
-    Result.Free;
+    Result.Free; Result := nil;
     Result := TJSONNumber.Create(FEngine.PostMessage(Msg, WParam, LParam));
   except
     on E: Exception do TraceException('MethodPostMessage', E);
@@ -2956,7 +2963,7 @@ begin
     WParam := StrToIntDef(Params.Values['w_param'].Value, 0);
     LParam := StrToIntDef(Params.Values['l_param'].Value, 0);
 
-    Result.Free;
+    Result.Free; Result := nil;
     Result := TJSONNumber.Create(FEngine.SendMessage(Msg, WParam, LParam));
   except
     on E: Exception do TraceException('MethodSendMessage', E);
@@ -2968,7 +2975,7 @@ begin
   try
     if Assigned(FEngine) then
     begin
-      Result.Free;
+      Result.Free; Result := nil;
       Result := TJSONString.Create(FEngine.GamePath);
     end;
   except
@@ -2982,7 +2989,7 @@ begin
   try
     if Assigned(FEngine) then
     begin
-      Result.Free;
+      Result.Free; Result := nil;
       Result := TJSONNumber.Create(FEngine.GameWindow);
     end;
   except
@@ -2996,7 +3003,7 @@ begin
   try
     if Assigned(FEngine) then
     begin
-      Result.Free;
+      Result.Free; Result := nil;
       Result := TJSONNumber.Create(FEngine.GameHash);
     end;
   except
@@ -3010,7 +3017,7 @@ begin
   try
     if Assigned(FEngine) then
     begin
-      Result.Free;
+      Result.Free; Result := nil;
       Result := TJSONNumber.Create(FEngine.GameProtocol);
     end;
   except
@@ -3024,7 +3031,7 @@ begin
   try
     if Assigned(FEngine) then
     begin
-      Result.Free;
+      Result.Free; Result := nil;
       Result := TJSONNumber.Create(FEngine.GameVersion);
     end;
   except
@@ -3038,7 +3045,7 @@ begin
   try
     if Assigned(FEngine) then
     begin
-      Result.Free;
+      Result.Free; Result := nil;
       Result := TJSONString.Create(FEngine.GetServerIP);
     end;
   except
@@ -3052,7 +3059,7 @@ begin
   try
     if Assigned(FEngine) then
     begin
-      Result.Free;
+      Result.Free; Result := nil;
       Result := TJSONString.Create(FEngine.GetServerName);
     end;
   except
@@ -3066,7 +3073,7 @@ begin
   try
     if Assigned(FEngine) then
     begin
-      Result.Free;
+      Result.Free; Result := nil;
 
       Result := TJSONNumber.Create(FEngine.GetServerID);
     end;
@@ -3081,7 +3088,7 @@ begin
   try
     if Assigned(FEngine) then
     begin
-      Result.Free;
+      Result.Free; Result := nil;
       Result := TJSONBool.Create(FEngine.IsClassicServer);
     end;
   except
@@ -3095,7 +3102,7 @@ begin
   try
     if Assigned(FEngine) then
     begin
-      Result.Free;
+      Result.Free; Result := nil;
       // Получаем время от движка
       Result := TJSONNumber.Create(FEngine.ServerTime);
     end;
@@ -3119,7 +3126,7 @@ begin
 
     FEngine.Msg(Title, Text, Color);
 
-    Result.Free;
+    Result.Free; Result := nil;
     Result := TJSONBool.Create(True);
   except
     on E: Exception do TraceException('MethodMsg', E);
@@ -3138,7 +3145,7 @@ begin
     // Если параметр не передан, по умолчанию мигаем окном игры
     TargetGame := not (Assigned(LValue) and (LValue is TJSONFalse));
 
-    Result.Free;
+    Result.Free; Result := nil;
     Result := TJSONBool.Create(FEngine.BlinkWindow(TargetGame));
   except
     on E: Exception do
@@ -3160,7 +3167,7 @@ begin
 
     FEngine.HKPauseScript(Enable);
 
-    Result.Free;
+    Result.Free; Result := nil;
     Result := TJSONBool.Create(True);
   except
     on E: Exception do TraceException('MethodHKPauseScript', E);
@@ -3176,7 +3183,7 @@ begin
 
     Level := Cardinal(StrToInt64Def(Params.Values['level'].Value, 0));
 
-    Result.Free;
+    Result.Free; Result := nil;
     Result := TJSONBool.Create(FEngine.SendActID(Level));
   except
     on E: Exception do
@@ -3193,7 +3200,7 @@ begin
 
     LText := Params.Values['text'].Value;
 
-    Result.Free;
+    Result.Free; Result := nil;
     Result := TJSONBool.Create(FEngine.SendToServer(LText));
   except
     on E: Exception do TraceException('MethodSendToServer', E);
@@ -3209,7 +3216,7 @@ begin
 
     LText := Params.Values['text'].Value;
 
-    Result.Free;
+    Result.Free; Result := nil;
 
     Result := TJSONBool.Create(FEngine.SendToClient(LText));
   except
@@ -3237,7 +3244,7 @@ begin
     else
       Time := $FFFFFFFF;
 
-    Result.Free;
+    Result.Free; Result := nil;
     Result := TJSONBool.Create(FEngine.BlockPacket(ID, ID2, IsServerPacket, Time));
   except
     on E: Exception do TraceException('MethodBlockPacket', E);
@@ -3287,7 +3294,7 @@ begin
     ResObj.AddPair('p2', TJSONNumber.Create(Prm2));
     ResObj.AddPair('success', TJSONBool.Create(ActionResult <> laNull));
 
-    Result.Free;
+    Result.Free; Result := nil;
     Result := ResObj;
   except
     on E: Exception do TraceException('MethodWaitAction', E);
@@ -3303,7 +3310,7 @@ begin
 
     FilePath := Params.Values['file_path'].Value;
 
-    Result.Free;
+    Result.Free; Result := nil;
     Result := TJSONNumber.Create(StrToInt(PluginProc(1000, FilePath)));
   except
     on E: Exception do
@@ -3321,7 +3328,7 @@ begin
     begin
       GPSName := Params.Values['gps_name'].Value;
       bValue:= (PluginProc(1001,GPSName) = '1');
-      Result.Free;
+      Result.Free; Result := nil;
       Result := TJSONBool.Create(bValue);
     end;
   except
@@ -3360,7 +3367,7 @@ begin
       GPSName := Params.Values['gps_name'].Value;
       RandomRange := Params.Values['gps_range'].Value;
       bValue:= (PluginProc(1003,GPSName, RandomRange) = '1');
-      Result.Free;
+      Result.Free; Result := nil;
       Result := TJSONBool.Create(bValue);
     end;
   except
@@ -3559,7 +3566,7 @@ end;
 function TCommandProcessor.ProcessRpc(const JsonStr: string): string;
 var
   Req, Resp, ErrObj: TJSONObject;
-  Rid, Meth: TJSONValue;
+  Rid, Meth, HandlerResult: TJSONValue;
   Handler: TCommandProc;
 begin
   // Логируем входящую команду (обрезаем, если слишком длинная)
@@ -3592,8 +3599,14 @@ begin
         if Assigned(Meth) and FMethods.TryGetValue(Meth.Value, Handler) then
         begin
           try
+            Trace('[ProcessRpc] >> Calling handler: ' + Meth.Value);
             Resp.AddPair('status', 'success');
-            Resp.AddPair('result', Handler(Req.GetValue('params') as TJSONObject));
+            HandlerResult := Handler(Req.GetValue('params') as TJSONObject);
+            if HandlerResult <> nil then
+              Resp.AddPair('result', HandlerResult)
+            else
+              Resp.AddPair('result', TJSONNull.Create);
+            Trace('[ProcessRpc] >> Handler returned OK: ' + Meth.Value);
           except
             on E: Exception do
             begin
@@ -3631,9 +3644,13 @@ begin
         Resp.AddPair('error', ErrObj);
       end;
     end;
+    Trace('[ProcessRpc] >> Resp.ToJSON');
     Result := Resp.ToJSON;
+    Trace('[ProcessRpc] >> ToJSON OK, len=' + IntToStr(Length(Result)));
   finally
+    Trace('[ProcessRpc] >> Resp.Free');
     Resp.Free;
+    Trace('[ProcessRpc] >> Resp.Free OK');
   end;
 end;
 
@@ -3663,10 +3680,14 @@ begin
 
         if ReadSuccess then
         begin
+          Trace('[Run] >> ProcessRpc START');
           Resp := ProcessRpc(Cmd);
+          Trace('[Run] >> ProcessRpc DONE, resp len=' + IntToStr(Length(Resp)));
 
+          Trace('[Run] >> SendToPipe START');
           WriteSuccess := FPipeManager.SendToPipe(
             FPipeManager.Pipes.Response, UTF8String(Resp + #13#10));
+          Trace('[Run] >> SendToPipe DONE, success=' + BoolToStr(WriteSuccess, True));
 
           if not WriteSuccess then
           begin
