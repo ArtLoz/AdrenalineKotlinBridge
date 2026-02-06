@@ -1,4 +1,4 @@
-unit JsonSerialization;
+﻿unit JsonSerialization;
 
 interface
 
@@ -256,7 +256,6 @@ end;
 procedure FillL2User(Src: IL2User; Dest: TJSONObject);
 begin
 
-  // ��������� ��������� �� nil � ���������� �������
   if (Src = nil) then
   begin
     TraceError('FillL2User', 'Source object is NIL');

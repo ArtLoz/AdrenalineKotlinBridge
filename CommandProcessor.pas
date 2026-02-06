@@ -13,9 +13,8 @@ type
   private
     FEngine: IL2Control;
     FPipeManager: TPipeManager;
-    FCommandThread: THandle;
-    FCommandThreadID: Cardinal;
     FStopRequested: Boolean;
+    FStoppedEvent: THandle;
     FMethods: TDictionary<string, TCommandProc>;
 
     procedure RegisterMethods;
@@ -158,6 +157,7 @@ type
     function MethodWaitAction(Params: TJSONObject): TJSONValue;
     function GetPetList(Params: TJSONObject): TJSONValue;
     function GetInventoryList(Params: TJSONObject): TJSONValue;
+    function GetQuestInventoryList(Params: TJSONObject): TJSONValue;
     function GetSkillList(Params: TJSONObject): TJSONValue;
     function GetCharList(Params: TJSONObject): TJSONValue;
     function GetDropList(Params: TJSONObject): TJSONValue;
@@ -166,25 +166,21 @@ type
     function MethodGetGPSPoint(Params: TJSONObject): TJSONValue;
     function MethodGPSMoveRandom(Params: TJSONObject): TJSONValue;
 
+
   public
     constructor Create(AEngine: IL2Control; APipeManager: TPipeManager);
     destructor Destroy; override;
 
-    function Start: Boolean;
-    procedure Stop;
-
-    property ThreadID: Cardinal read FCommandThreadID;
+    procedure Run;
+    procedure RequestStop;
+    procedure WaitForStop(TimeoutMS: Cardinal = 5000);
   end;
 
 var
   _PluginProc: function(Code: Cardinal; p1, p2, p3: widestring): widestring; stdcall;
 
-function CommandThreadProc(P: Pointer): DWORD; stdcall;
-
-// Если константа не определена в PluginAPI, определим её здесь по умолчанию
 const
-  LOCAL_COMMAND_CHECK_INTERVAL = 50;
-  ERROR_PIPE_LISTENING = 536; // Код ошибки ожидания подключения
+  ERROR_PIPE_LISTENING = 536;
 
 implementation
 
@@ -201,6 +197,7 @@ begin
     FEngine := AEngine;
     FPipeManager := APipeManager;
     FStopRequested := False;
+    FStoppedEvent := CreateEvent(nil, True, False, nil);
     FMethods := TDictionary<string, TCommandProc>.Create;
     RegisterMethods;
     TraceFmt('CommandProcessor created. Methods registered: %d', [FMethods.Count]);
@@ -218,7 +215,11 @@ destructor TCommandProcessor.Destroy;
 begin
   TraceEnter('TCommandProcessor.Destroy');
   try
-    Stop;
+    if FStoppedEvent <> INVALID_HANDLE_VALUE then
+    begin
+      CloseHandle(FStoppedEvent);
+      FStoppedEvent := INVALID_HANDLE_VALUE;
+    end;
     if Assigned(FMethods) then
       FMethods.Free;
     inherited;
@@ -373,6 +374,7 @@ begin
   FMethods.Add('Engine.GetSkillList', GetSkillList);
   FMethods.Add('Engine.GetCharList', GetCharList);
   FMethods.Add('Engine.GetDropList', GetDropList);
+  FMethods.Add('Engine.GetQuestInventoryList', GetQuestInventoryList);
 
   FMethods.Add('Engine.LoadGPSPoint', MethodLoadGPSPoint);
   FMethods.Add('Engine.GPSMove', MethodGPSMove);
@@ -2024,7 +2026,7 @@ begin
   Result := TJSONBool.Create(False);
   try
     if not Assigned(FEngine) then Exit;
-    FEngine.Lock;
+    //FEngine.Lock;
     LValue := Params.Values['timeout'];
     if Assigned(LValue) then
       Timeout := Cardinal(StrToInt64Def(LValue.Value, 5000))
@@ -2033,10 +2035,10 @@ begin
 
     Result.Free;
     Result := TJSONBool.Create(FEngine.DlgOpen(Timeout));
-    FEngine.UnLock;
+   // FEngine.UnLock;
   except
     on E: Exception do      begin
-      FEngine.UnLock;
+     // FEngine.UnLock;
       TraceException('MethodDlgOpen', E);
     end;
   end;
@@ -3452,6 +3454,34 @@ begin
   end;
   TraceLeave('TCommandProcessor.GetInventoryList');
 end;
+function TCommandProcessor.GetQuestInventoryList(Params: TJSONObject): TJSONValue;
+var
+  jarray: TJSONArray;
+begin
+  TraceEnter('TCommandProcessor.GetInventoryList');
+  jarray := TJSONArray.Create;
+
+  try
+    if Assigned(FEngine) and Assigned(FEngine.Inventory) then
+    begin
+      FEngine.Lock;
+      try
+        FillL2ItemList(FEngine.Inventory.Quest, jarray);
+      finally
+        FEngine.UnLock;
+      end;
+    end;
+    Result := jarray;
+  except
+    on E: Exception do
+    begin
+      TraceException('TCommandProcessor.GetInventoryList', E);
+      jarray.Free;
+      Result := TJSONArray.Create;
+    end;
+  end;
+  TraceLeave('TCommandProcessor.GetInventoryList');
+end;
 function TCommandProcessor.GetSkillList(Params: TJSONObject): TJSONValue;
 var jarray: TJSONArray;
 begin
@@ -3607,42 +3637,13 @@ begin
   end;
 end;
 
-function TCommandProcessor.Start: Boolean;
+procedure TCommandProcessor.RequestStop;
 begin
-  TraceEnter('TCommandProcessor.Start');
-  FCommandThread := CreateThread(nil, 0, @CommandThreadProc, Self, 0, FCommandThreadID);
-  Result := FCommandThread <> 0;
-  if Result then
-    TraceFmt('Command thread started successfully (ID: %d)', [FCommandThreadID])
-  else
-    TraceError('TCommandProcessor.Start', 'Failed to create thread: ' + SysErrorMessage(GetLastError));
-  TraceLeave('TCommandProcessor.Start');
-end;
-
-procedure TCommandProcessor.Stop;
-begin
-  TraceEnter('TCommandProcessor.Stop');
-  if FCommandThread = 0 then Exit;
-
   FStopRequested := True;
-  Trace('Requesting thread stop...');
-
-  if WaitForSingleObject(FCommandThread, 500) = WAIT_TIMEOUT then
-  begin
-    TraceError('TCommandProcessor.Stop', 'Thread did not stop in time, forcing termination (unsafe)');
-    TerminateThread(FCommandThread, 0);
-  end
-  else
-    Trace('Thread stopped gracefully.');
-
-  CloseHandle(FCommandThread);
-  FCommandThread := 0;
-  TraceLeave('TCommandProcessor.Stop');
 end;
 
-function CommandThreadProc(P: Pointer): DWORD; stdcall;
+procedure TCommandProcessor.Run;
 var
-  Processor: TCommandProcessor;
   Cmd: string;
   Resp: string;
   ReadSuccess: Boolean;
@@ -3650,89 +3651,76 @@ var
   ReconnectNeeded: Boolean;
   ErrCode: DWORD;
 begin
-  Result := 0;
-  if not Assigned(P) then Exit;
-  Processor := TCommandProcessor(P);
-
-  TraceFmt('CommandThreadProc: Thread loop started (ID: %d)', [GetCurrentThreadId]);
+  TraceFmt('TCommandProcessor.Run: Loop started (ThreadID: %d)', [GetCurrentThreadId]);
 
   try
-    while not Processor.FStopRequested do
+    while not FStopRequested do
     begin
       try
-        ReadSuccess := Processor.FPipeManager.ReadFromPipe(
-          Processor.FPipeManager.Pipes.Command, Cmd);
+        ReadSuccess := FPipeManager.ReadFromPipe(FPipeManager.Pipes.Command, Cmd);
 
         ReconnectNeeded := False;
 
         if ReadSuccess then
         begin
-          // Команда получена, обрабатываем
-          Resp := Processor.ProcessRpc(Cmd);
+          Resp := ProcessRpc(Cmd);
 
-          // Отправляем ответ
-          WriteSuccess := Processor.FPipeManager.SendToPipe(
-            Processor.FPipeManager.Pipes.Response, UTF8String(Resp + #13#10));
+          WriteSuccess := FPipeManager.SendToPipe(
+            FPipeManager.Pipes.Response, UTF8String(Resp + #13#10));
 
           if not WriteSuccess then
           begin
-            TraceError('CommandThreadProc', 'Failed to send response. Triggering full reconnect.');
+            TraceError('TCommandProcessor.Run', 'Failed to send response. Triggering full reconnect.');
             ReconnectNeeded := True;
           end;
         end
         else
         begin
-          // Если чтения не было, проверяем жив ли канал
-          if not PeekNamedPipe(Processor.FPipeManager.Pipes.Command, nil, 0, nil, nil, nil) then
+          if not PeekNamedPipe(FPipeManager.Pipes.Command, nil, 0, nil, nil, nil) then
           begin
             ErrCode := GetLastError;
-            // Игнорируем штатные состояния ожидания, чтобы не спамить реконнектами
             if (ErrCode <> ERROR_NO_DATA) and
                (ErrCode <> ERROR_PIPE_LISTENING) then
-            begin
-               // Только реальные ошибки (например, разрыв соединения клиентом) вызывают пересоздание
-               ReconnectNeeded := True;
-            end;
+              ReconnectNeeded := True;
           end;
         end;
 
         if ReconnectNeeded then
         begin
-          // УБРАЛИ ЛОГ "Performing full pipe reconnection sequence", так как это спам
-          // Это нормальный процесс восстановления связи
-
-          // Переподключаем все каналы
-          Processor.FPipeManager.ReconnectPipe(
-            Processor.FPipeManager.FPipes.Command, 'commands', True);
-          Processor.FPipeManager.ReconnectPipe(
-            Processor.FPipeManager.FPipes.Response, 'responses', False);
-          Processor.FPipeManager.ReconnectPipe(
-            Processor.FPipeManager.FPipes.Action, 'actions', False);
-          Processor.FPipeManager.ReconnectPipe(
-            Processor.FPipeManager.FPipes.Packet, 'packets', False);
-          Processor.FPipeManager.ReconnectPipe(
-            Processor.FPipeManager.FPipes.CliPacket, 'clipackets', False);
-
-          // Даем небольшую паузу после реконнекта, чтобы клиент успел подцепиться
+          FPipeManager.ReconnectPipe(FPipeManager.FPipes.Command, 'commands', True);
+          FPipeManager.ReconnectPipe(FPipeManager.FPipes.Response, 'responses', False);
+          FPipeManager.ReconnectPipe(FPipeManager.FPipes.Action, 'actions', False);
+          FPipeManager.ReconnectPipe(FPipeManager.FPipes.Packet, 'packets', False);
+          FPipeManager.ReconnectPipe(FPipeManager.FPipes.CliPacket, 'clipackets', False);
           Sleep(500);
         end;
 
       except
         on E: Exception do
         begin
-          TraceException('CommandThreadProc Loop', E);
+          TraceException('TCommandProcessor.Run Loop', E);
           Sleep(1000);
         end;
       end;
 
-      Sleep(LOCAL_COMMAND_CHECK_INTERVAL);
+      Sleep(COMMAND_CHECK_INTERVAL);
     end;
   except
     on E: Exception do
-      TraceException('CommandThreadProc Fatal', E);
+      TraceException('TCommandProcessor.Run Fatal', E);
   end;
 
-  Trace('CommandThreadProc: Thread loop finished.');
+  Trace('TCommandProcessor.Run: Loop finished.');
+  SetEvent(FStoppedEvent);
+end;
+
+procedure TCommandProcessor.WaitForStop(TimeoutMS: Cardinal);
+begin
+  if FStoppedEvent <> INVALID_HANDLE_VALUE then
+  begin
+    if WaitForSingleObject(FStoppedEvent, TimeoutMS) = WAIT_TIMEOUT then
+      TraceError('TCommandProcessor.WaitForStop', 'Run loop did not exit in time.');
+  end;
 end;
 
 end.
