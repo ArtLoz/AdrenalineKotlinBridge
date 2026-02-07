@@ -1,6 +1,7 @@
 library BridgeV1;
 
 uses
+  SimpleShareMem,
   Windows,
   SysUtils,
   Types in 'Types.pas',
@@ -19,13 +20,32 @@ var
   PipeManager: TPipeManager;
   CommandProcessor: TCommandProcessor;
   EventForwarder: TEventForwarder;
+  hWorkerThread: THandle;
+  WorkerThreadID: Cardinal;
+
+function WorkerThread(P: Pointer): Integer;
+begin
+  try
+    Trace('WorkerThread: started (ThreadID: ' + IntToStr(GetCurrentThreadId) + ')');
+    CommandProcessor.Run;
+    Trace('WorkerThread: Run loop finished');
+  except
+    on E: Exception do
+      TraceException('WorkerThread', E);
+  end;
+  Result := 0;
+  EndThread(0);
+end;
 
 function StartPlugin(AppHandle: Cardinal; PProc: Pointer): Cardinal; stdcall;
 begin
-  // Обычно вызывается игрой при загрузке DLL
-  TraceEnter('StartPlugin');
-  Result := 1;
-  TraceLeave('StartPlugin');
+  try
+    @_PluginProc := Pointer(pproc);
+    Result := 1;
+  except
+    on E: Exception do
+      TraceException('StartPlugin', E);
+  end;
 end;
 
 function StopPlugin: Boolean; stdcall;
@@ -33,6 +53,22 @@ begin
   TraceEnter('StopPlugin');
   Result := True;
   try
+
+    if Assigned(CommandProcessor) then
+    begin
+      Trace('Requesting CommandProcessor stop...');
+      CommandProcessor.RequestStop;
+    end;
+
+    if hWorkerThread <> 0 then
+    begin
+      Trace('Waiting for worker thread to exit...');
+      if WaitForSingleObject(hWorkerThread, 5000) = WAIT_TIMEOUT then
+        TraceError('StopPlugin', 'Worker thread did not exit in time.');
+      CloseHandle(hWorkerThread);
+      hWorkerThread := 0;
+    end;
+
     if Assigned(CommandProcessor) then
     begin
       Trace('Freeing CommandProcessor...');
@@ -50,6 +86,10 @@ begin
       Trace('Freeing PipeManager...');
       FreeAndNil(PipeManager);
     end;
+
+    _PluginProc := nil;
+    Engine := nil;
+
   except
     on E: Exception do
       TraceException('StopPlugin', E);
@@ -124,17 +164,11 @@ begin
     EventForwarder := TEventForwarder.Create(PipeManager);
     CommandProcessor := TCommandProcessor.Create(Engine, PipeManager);
 
-    if CommandProcessor.Start then
-    begin
-      Result := CommandProcessor.ThreadID;
-      TraceFmt('Plugin initialized successfully. ThreadID: %d', [Result]);
-      Engine.Msg('BridgeV1', 'Bridge Loaded: ' + CharName);
-    end
-    else
-    begin
-      TraceError('InitControl', 'CommandProcessor thread failed to start.');
-      Engine.Msg('BridgeV1', 'Thread Start Failed');
-    end;
+    hWorkerThread := BeginThread(nil, 0, @WorkerThread, nil, 0, WorkerThreadID);
+    Trace('Worker thread created (ThreadID: ' + IntToStr(WorkerThreadID) + ')');
+
+    Engine.Msg('BridgeV1', 'Bridge Loaded: ' + CharName);
+    Result := WorkerThreadID;
 
   except
     on E: Exception do

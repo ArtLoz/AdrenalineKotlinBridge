@@ -786,9 +786,9 @@ begin
   try
     if Assigned(FEngine) and Params.TryGetValue<Cardinal>('id', ID) then begin
       Result.Free; Result := nil;
-     // FEngine.Lock;
+      FEngine.Lock;
       Result := TJSONBool.Create(FEngine.SetTargetID(ID));
-      //FEngine.UnLock;
+      FEngine.UnLock;
     end;
   except on E: Exception do begin
     //FEngine.UnLock;
