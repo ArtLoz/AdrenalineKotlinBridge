@@ -1,165 +1,187 @@
-# BridgeV1 - Kotlin Bridge Plugin
+# BridgeV1 — L2Bot IPC Bridge Plugin
 
-Модульная архитектура плагина для связи L2Bot с Kotlin через Named Pipes.
+A Delphi plugin DLL for L2Bot that exposes a JSON-RPC interface over Windows Named Pipes, enabling external applications (Kotlin/Java or any language supporting Named Pipes) to control and monitor the bot programmatically.
 
-## 📁 Структура проекта
+## Project Structure
 
 ```
 BridgeV1/
-├── BridgeV1.dpr           # Главный файл плагина
-├── Types.pas              # Общие типы и константы
-├── PipeManager.pas        # Управление Named Pipes
-├── CommandProcessor.pas   # Обработка команд от Kotlin
-├── EventForwarder.pas     # Отправка событий в Kotlin
-├── PluginAPI.pas          # API интерфейсы бота (копия)
-├── PluginConst.pas        # Константы бота (копия)
-└── README.md              # Эта документация
+├── BridgeV1.dpr             # Main DLL entry point & exported functions
+├── Types.pas                # Shared types and constants
+├── PluginAPI.pas            # L2Bot engine interfaces (IL2Control, IL2User, etc.)
+├── PluginConst.pas          # Game-related enums and constants
+├── PipeManager.pas          # Named Pipes creation, I/O, reconnection
+├── CommandProcessor.pas     # JSON-RPC command handler (threaded)
+├── EventForwarder.pas       # Streams game events to pipes
+├── JsonSerialization.pas    # Game object → JSON serialization
+└── Logger.pas               # Debug logging via OutputDebugString
 ```
 
-## 🏗️ Архитектура
+## Architecture
 
-### 1. Types.pas
-**Назначение:** Общие типы данных и константы.
-
-**Содержит:**
-- `TPipeHandles` - структура с хендлами всех пайпов
-- `BUFFER_SIZE` - размер буфера для чтения/записи
-- `COMMAND_CHECK_INTERVAL` - интервал проверки команд
-
-### 2. PipeManager.pas
-**Назначение:** Управление Named Pipes.
-
-**Ключевые методы:**
-- `Create()` - создаёт менеджер с именем персонажа
-- `Initialize()` - создаёт все 5 пайпов
-- `ReadFromPipe()` - читает данные из пайпа (UTF-8)
-- `SendToPipe()` - отправляет данные в пайп
-- `Destroy()` - автоматически закрывает все пайпы
-
-**Пайпы:**
-- `l2bot_commands_{CharName}` - INBOUND (Kotlin → Plugin)
-- `l2bot_responses_{CharName}` - OUTBOUND (Plugin → Kotlin)
-- `l2bot_actions_{CharName}` - OUTBOUND (события)
-- `l2bot_packets_{CharName}` - OUTBOUND (пакеты сервер→клиент)
-- `l2bot_clipackets_{CharName}` - OUTBOUND (пакеты клиент→сервер)
-
-### 3. CommandProcessor.pas
-**Назначение:** Обработка команд от Kotlin.
-
-**Ключевые методы:**
-- `Start()` - запускает отдельный поток для чтения команд
-- `Stop()` - останавливает поток
-- `ExecuteCommand()` - парсит JSON и выполняет команду
-
-**Поддерживаемые команды:**
-- `Ping` → `{"status":"ok","data":"pong"}`
-- `GetUserName` → возвращает имя персонажа
-- `GetUserHP` → текущее HP
-- `GetUserMP` → текущее MP
-- `GetUserLevel` → уровень персонажа
-- `GetUserXYZ` → координаты X, Y, Z
-- `Say` → отправить сообщение в чат
-
-**Поток команд:**
 ```
-Цикл (каждые 10ms):
-  1. Проверить наличие команды в пайпе
-  2. Если есть - прочитать JSON
-  3. Выполнить команду через Engine
-  4. Отправить JSON ответ
+┌────────────┐                  ┌───────────────┐                  ┌─────────┐
+│  External  │ ──commands────>  │   BridgeV1    │  <──Engine────  │  L2Bot  │
+│  Client    │ <─responses────  │    Plugin     │  ──Engine────>  │         │
+│ (Kotlin/..)│ <─actions──────  │     DLL       │                  │         │
+│            │ <─packets──────  │               │                  │         │
+└────────────┘                  └───────────────┘                  └─────────┘
 ```
 
-### 4. EventForwarder.pas
-**Назначение:** Отправка событий бота в Kotlin.
+### Named Pipes (5 per character)
 
-**Методы:**
-- `ForwardAction()` - отправляет события OnAction
-- `ForwardPacket()` - отправляет пакеты сервер→клиент
-- `ForwardCliPacket()` - отправляет пакеты клиент→сервер
+Each character creates pipes with the pattern `\\.\pipe\l2bot_{type}_{CharName}`:
 
-**Формат данных:**
-- Actions: `{ActionID}|{P1}|{P2}\r\n`
-- Packets: `{HexID}|{HexData}\r\n`
+| Pipe | Direction | Purpose |
+|------|-----------|---------|
+| `l2bot_commands_{CharName}` | Client → Plugin | Receives JSON-RPC commands |
+| `l2bot_responses_{CharName}` | Plugin → Client | Sends JSON-RPC responses |
+| `l2bot_actions_{CharName}` | Plugin → Client | Streams game action events |
+| `l2bot_packets_{CharName}` | Plugin → Client | Streams server → client packets (hex) |
+| `l2bot_clipackets_{CharName}` | Plugin → Client | Streams client → server packets (hex) |
 
-## 🚀 Как добавить новую команду
+### Core Components
 
-### Шаг 1: Добавить обработку в CommandProcessor.pas
+**PipeManager** — Creates and manages all 5 named pipes. Handles UTF-8 I/O, automatic reconnection with retry logic, and character name sanitization for pipe naming.
+
+**CommandProcessor** — Runs a dedicated polling thread (10 ms interval) that reads JSON-RPC requests from the command pipe, dispatches them to registered handlers, and writes responses back.
+
+**EventForwarder** — Subscribes to L2Bot engine callbacks (`OnAction`, `OnPacket`, `OnCliPacket`) and forwards events to the corresponding outbound pipes.
+
+**JsonSerialization** — Converts L2Bot interfaces (`IL2User`, `IL2Npc`, `IL2Char`, etc.) to JSON objects. Handles player stats, inventory, skills, buffs, NPC lists, drop lists, and more.
+
+**Logger** — Debug output via `OutputDebugString()` with `ADR_BRIDGE:` prefix. Supports method enter/leave tracing and exception logging.
+
+## JSON-RPC Protocol
+
+### Request Format
+
+```json
+{
+  "id": 1,
+  "method": "Engine.GetMe",
+  "params": {}
+}
+```
+
+### Response Format
+
+```json
+{
+  "id": 1,
+  "status": "success",
+  "result": { ... }
+}
+```
+
+Error response:
+```json
+{
+  "id": 1,
+  "status": "error",
+  "error": "Unknown method: Foo.Bar"
+}
+```
+
+### Available Methods
+
+| Method | Params | Description |
+|--------|--------|-------------|
+| `System.Echo` | `{"message": "..."}` | Echo test, returns the message back |
+| `Engine.GetMe` | `{}` | Returns full player data (stats, inventory, skills, buffs) |
+| `Engine.GetNpcList` | `{}` | Returns list of visible NPCs with positions, HP, buffs |
+| `Engine.MoveTo` | `{"x": int, "y": int, "z": int}` | Move character to coordinates |
+| `Engine.MoveToByOid` | `{"oid": int}` | Move to a specific NPC/object by OID |
+
+### Event Stream Formats
+
+**Actions pipe:** `{ActionID}|{P1}|{P2}\r\n`
+
+**Packets pipe:** `{HexID}|{HexData}\r\n`
+
+## Plugin Lifecycle
+
+```
+DLL loaded by L2Bot
+    │
+    ▼
+StartPlugin(AppHandle, PProc)     ← Plugin initialization
+    │
+    ▼
+InitControl(Engine)               ← Called per character
+    ├── PipeManager.Initialize()  ← Creates 5 named pipes
+    ├── EventForwarder.Create()   ← Registers engine callbacks
+    └── CommandProcessor.Start()  ← Starts polling thread
+    │
+    ▼
+Game loop: events forwarded, commands processed
+    │
+    ▼
+StopPlugin()                      ← Cleanup & shutdown
+```
+
+### DLL Exports
+
+| Export | Signature | Description |
+|--------|-----------|-------------|
+| `StartPlugin` | `(AppHandle, PProc): Cardinal` | Called once when the plugin is loaded |
+| `InitControl` | `(AEngine: IL2Control): THandle` | Called per character, returns instance handle |
+| `StopPlugin` | `(): Boolean` | Called on plugin unload |
+| `OnAction` | `(Action, P1, P2)` | Game action callback |
+| `OnPacket` | `(ID1, ID2, Data, Size)` | Server → client packet callback |
+| `OnCliPacket` | `(ID1, ID2, Data, Size)` | Client → server packet callback |
+
+## Configuration
+
+Constants in `Types.pas`:
 
 ```delphi
-function TCommandProcessor.ExecuteCommand(const CommandJson: string): AnsiString;
-begin
-  // ...
-  
-  // Добавить новую команду
-  else if Cmd = 'MoveTo' then
-  begin
-    X := StrToInt(GetJsonValue(CommandJson, 'x'));
-    Y := StrToInt(GetJsonValue(CommandJson, 'y'));
-    Z := StrToInt(GetJsonValue(CommandJson, 'z'));
-    
-    if FEngine.MoveTo(X, Y, Z) then
-      Result := '{"status":"ok","data":"Moving"}'
-    else
-      Result := '{"status":"error","message":"Failed to move"}';
-  end
-  
-  // ...
-end;
+BUFFER_SIZE = 16384;          // Pipe buffer size in bytes (16 KB)
+COMMAND_CHECK_INTERVAL = 10;  // Command polling interval in ms
 ```
 
-### Шаг 2: Использовать в Kotlin
+Debug flags in `Logger.pas`:
+
+```delphi
+DEBUG_MODE = True;            // Enable/disable debug output
+TRACE_ENTER_LEAVE = True;     // Log method entry/exit
+```
+
+## Building
+
+1. Open `BridgeV1.dpr` in Delphi IDE
+2. Build → Compile
+3. Copy the resulting `BridgeV1.dll` to the L2Bot plugins directory
+
+## Usage Example (Kotlin)
 
 ```kotlin
-val response = client.sendCommand("""{"cmd":"MoveTo","x":12345,"y":67890,"z":100}""")
-println(response) // {"status":"ok","data":"Moving"}
+// Connect to the command pipe
+val commandPipe = FileOutputStream("\\\\.\\pipe\\l2bot_commands_MyChar")
+val responsePipe = FileInputStream("\\\\.\\pipe\\l2bot_responses_MyChar")
+
+// Send a command
+val request = """{"id":1,"method":"Engine.GetMe","params":{}}"""
+commandPipe.write(request.toByteArray(Charsets.UTF_8))
+
+// Read the response
+val buffer = ByteArray(16384)
+val bytesRead = responsePipe.read(buffer)
+val response = String(buffer, 0, bytesRead, Charsets.UTF_8)
+println(response) // {"id":1,"status":"success","result":{...}}
 ```
 
-## 🔧 Компиляция
+## Debugging
 
-1. Открыть `BridgeV1.dpr` в Delphi
-2. Build → Compile
-3. Скопировать `BridgeV1.dll` в папку плагинов бота
-
-## 📊 Поток данных
+All debug messages are sent via `OutputDebugString()` with the `ADR_BRIDGE:` prefix. Use tools like **DebugView** (Sysinternals) to capture output:
 
 ```
-┌─────────┐                  ┌──────────────┐                  ┌────────┐
-│ Kotlin  │ ───commands───>  │  BridgeV1    │  <───Engine───  │  Bot   │
-│ Client  │ <──responses───  │   Plugin     │  ───Engine───>  │        │
-│         │ <──events──────  │              │                  │        │
-└─────────┘                  └──────────────┘                  └────────┘
+ADR_BRIDGE: [PipeManager] Created INBOUND: \\.\pipe\l2bot_commands_MyChar
+ADR_BRIDGE: [CommandProcessor] Thread started
+ADR_BRIDGE: [CommandProcessor] Received: {"id":1,"method":"Engine.GetMe","params":{}}
+ADR_BRIDGE: [CommandProcessor] Response sent, 2048 bytes
 ```
 
-## ⚙️ Настройки
+## License
 
-### Изменить интервал проверки команд
-
-В `Types.pas`:
-```delphi
-const
-  COMMAND_CHECK_INTERVAL = 10; // мс (меньше = быстрее отклик)
-```
-
-### Изменить размер буфера
-
-В `Types.pas`:
-```delphi
-const
-  BUFFER_SIZE = 4096; // байт
-```
-
-## 🐛 Отладка
-
-Все сообщения выводятся в лог бота через `Engine.Msg()`:
-
-```
-[BridgeV1] Initializing for: CharName
-[PipeManager] Created INBOUND: \\.\pipe\l2bot_commands_CharName
-[CommandProcessor] Thread started: 12345
-[CommandThread] CMD: {"cmd":"Ping"}
-[CommandThread] RESP: {"status":"ok","data":"pong"}
-```
-
-## 📝 Лицензия
-
-Открытый код. Используйте свободно.
+Open source. Free to use.
