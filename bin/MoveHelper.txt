@@ -1,0 +1,106 @@
+unit MoveHelper;
+
+interface
+
+uses
+  SysUtils, Classes;
+
+function GPS_LoadMap(path: string):integer;
+function GPS_MoveTo(spot_name: string): boolean;
+function GPS_Pont(point: string):TGpsPoint;
+function GPS_MoveToRandom(spot_name: string; range: integer): boolean; 
+implementation
+
+function GPS_LoadMap(path: string):integer;
+var count: integer;
+begin
+  if FileExists(path) then begin
+    count:= GPS.LoadBase(path);
+    Print('[GPS] Загружено: '+IntToStr(count)+' точек');
+    result:= count;
+  end else begin
+    Print('[GPS] Не смог найти карту! Остановка скрипта');
+    Print('[GPS] Проверьте ее наличие: '+path);
+    result:= 0;
+  end;
+end;
+
+function GPS_MoveTo(spot_name: string): boolean; 
+var dist: single;  i, last: integer;
+begin  
+  result:= false;
+  dist:= GPS.GetPathByName(User.X, User.Y, User.Z, spot_name);     
+  if (GPS.Count > 0) then begin
+    for i:= 0 to GPS.Count-1 do begin
+      if (User.Dead) then begin
+        Engine.GoHome();
+        exit;
+      end;
+      if (not Engine.MoveTo(Round(GPS.Items(i).X), Round(GPS.Items(i).Y), Round(GPS.Items(i).Z))) then begin                                                         
+        Print('[GPS] Ошибка при движении в точку');
+       // break;
+      end;         
+    end;
+    last:= GPS.Count-1;
+    result:= Engine.MoveTo(Round(GPS.Items(last).X), Round(GPS.Items(last).Y), Round(GPS.Items(last).Z))
+             or (User.DistTo(Round(GPS.Items(last).X), Round(GPS.Items(last).Y), Round(GPS.Items(last).Z)) < 150);
+  end else Print('[GPS] Не смог найти нужный маршрут');  
+end;
+
+function GPS_MoveToRandom(spot_name: string; range: integer): boolean; 
+var 
+  dist: single;  
+  i, last, dx, dy: integer;
+begin  
+  result := false;
+  dist := GPS.GetPathByName(User.X, User.Y, User.Z, spot_name);     
+
+  if (GPS.Count > 0) then 
+  begin
+    for i := 0 to GPS.Count - 1 do 
+    begin
+      if User.Dead then 
+      begin
+        Engine.GoHome();
+        exit;
+      end;
+
+      if not Engine.MoveTo(
+        Round(GPS.Items(i).X),
+        Round(GPS.Items(i).Y),
+        Round(GPS.Items(i).Z)) 
+      then 
+      begin
+        Print('[GPS] Ошибка при движении в точку');
+        break;
+      end;         
+    end;
+
+    last := GPS.Count - 1;
+
+    // Генерируем случайное отклонение в пределах [-range..+range]
+    dx := Random(range * 2 + 1) - range;
+    dy := Random(range * 2 + 1) - range;
+
+    result := Engine.MoveTo(
+                Round(GPS.Items(last).X) + dx,
+                Round(GPS.Items(last).Y) + dy,
+                Round(GPS.Items(last).Z))
+             or (User.DistTo(
+                  Round(GPS.Items(last).X),
+                  Round(GPS.Items(last).Y),
+                  Round(GPS.Items(last).Z)) < 150);
+  end 
+  else 
+    Print('[GPS] Не смог найти нужный маршрут');  
+end;
+
+function GPS_Pont(point: string):TGpsPoint;
+begin
+ GPS.GetPathByName(User.X, User.Y, User.Z, point);
+ if (GPS.Count > 0) then begin
+      result:=GPS.Items(GPS.Count -1);
+ end;
+end;
+
+end.

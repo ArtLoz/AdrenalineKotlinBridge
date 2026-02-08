@@ -1,0 +1,21 @@
+uses sysutils, movehelper,bridgeHelper;
+
+function PluginProc(Code: Cardinal; p1, p2, p3: WideString): WideString; stdcall;
+begin
+  case code of
+    1000: result:= IntToStr(GPS_LoadMap(p1));
+    1001: result:= BoolToBridge(GPS_MoveTo(p1));
+    1002: result:= GpsPointToString(GPS_Pont(p1));
+    1003: result:= BoolToBridge(GPS_MoveToRandom(p1, StrToInt(p2)));
+  end;  
+end; 
+
+procedure StartPlugin;
+begin
+  Script.StartPlugin(Script.Path + 'BridgeV1.dll', @PluginProc, False);  
+end;
+
+begin
+  Script.MainProc(@StartPlugin);
+  Delay(-1);
+end.

@@ -1,0 +1,35 @@
+unit bridgeHelper;
+
+interface
+
+uses
+  SysUtils, Classes;
+
+function GpsPointToString(Point: TGpsPoint): WideString;
+function BoolToBridge(Value: Boolean): WideString;
+implementation
+function GpsPointToString(Point: TGpsPoint): WideString;
+var
+  sep: WideString;
+begin
+  if (Point = nil) then 
+  begin
+    Result := '';
+    Exit;
+  end;
+  sep := ';'; 
+  try
+    Result := WideString(Point.Name) + sep + 
+              WideString(IntToStr(Trunc(Point.X))) + sep + 
+              WideString(IntToStr(Trunc(Point.Y))) + sep + 
+              WideString(IntToStr(Trunc(Point.Z))) + sep + 
+              WideString(IntToStr(Point.ID)); 
+  except
+    Result := '';
+  end;
+end;
+function BoolToBridge(Value: Boolean): WideString;
+begin
+  if Value then Result := '1' else Result := '0';
+end;
+end.
