@@ -133,6 +133,7 @@ end;
 function InitControl(AEngine: IL2Control): THandle; stdcall;
 var
   CharName: string;
+  I: Integer;
 begin
   TraceEnter('InitControl');
   Result := 0;

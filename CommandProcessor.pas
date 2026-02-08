@@ -166,7 +166,6 @@ type
     function MethodGetGPSPoint(Params: TJSONObject): TJSONValue;
     function MethodGPSMoveRandom(Params: TJSONObject): TJSONValue;
 
-
   public
     constructor Create(AEngine: IL2Control; APipeManager: TPipeManager);
     destructor Destroy; override;
@@ -191,7 +190,6 @@ end;
 
 constructor TCommandProcessor.Create(AEngine: IL2Control; APipeManager: TPipeManager);
 begin
-  TraceEnter('TCommandProcessor.Create');
   try
     inherited Create;
     FEngine := AEngine;
@@ -208,12 +206,10 @@ begin
       raise;
     end;
   end;
-  TraceLeave('TCommandProcessor.Create');
 end;
 
 destructor TCommandProcessor.Destroy;
 begin
-  TraceEnter('TCommandProcessor.Destroy');
   try
     if FStoppedEvent <> INVALID_HANDLE_VALUE then
     begin
@@ -227,7 +223,6 @@ begin
     on E: Exception do
       TraceException('TCommandProcessor.Destroy', E);
   end;
-  TraceLeave('TCommandProcessor.Destroy');
 end;
 
 procedure TCommandProcessor.RegisterMethods;
@@ -388,18 +383,12 @@ function TCommandProcessor.MethodGetMe(Params: TJSONObject): TJSONValue;
 var
   Obj: TJSONObject;
 begin
-  Trace('[MethodGetMe] START');
   try
-    if not Assigned(FEngine) then begin Trace('[MethodGetMe] FEngine is NIL!'); Result := nil; Exit; end;
-    Trace('[MethodGetMe] >> Getting User');
-    if not Assigned(FEngine.User) then begin Trace('[MethodGetMe] FEngine.User is NIL!'); Result := nil; Exit; end;
-    Trace('[MethodGetMe] >> User OK, creating JSON obj');
+    if not Assigned(FEngine) then begin Result := nil; Exit; end;
+    if not Assigned(FEngine.User) then begin Result := nil; Exit; end;
     Obj := TJSONObject.Create;
-    Trace('[MethodGetMe] >> Calling FillL2User');
     FillL2User(FEngine.User, Obj);
-    Trace('[MethodGetMe] >> FillL2User returned OK');
     Result := Obj;
-    Trace('[MethodGetMe] DONE');
   except
     on E: Exception do
     begin
@@ -3381,9 +3370,7 @@ function TCommandProcessor.GetNpcList(Params: TJSONObject): TJSONValue;
 var
   jarray: TJSONArray;
 begin
-  TraceEnter('TCommandProcessor.GetNpcList');
   jarray := TJSONArray.Create;
-
   try
     if Assigned(FEngine) and Assigned(FEngine.NpcList) then
     begin
@@ -3403,15 +3390,12 @@ begin
       Result := TJSONArray.Create;
     end;
   end;
-  TraceLeave('TCommandProcessor.GetNpcList');
 end;
 function TCommandProcessor.GetPetList(Params: TJSONObject): TJSONValue;
 var
   jarray: TJSONArray;
 begin
-  TraceEnter('TCommandProcessor.GetPetList');
   jarray := TJSONArray.Create;
-
   try
     if Assigned(FEngine) and Assigned(FEngine.PetList) then
     begin
@@ -3431,15 +3415,13 @@ begin
       Result := TJSONArray.Create;
     end;
   end;
-  TraceLeave('TCommandProcessor.GetPetList');
 end;
+
 function TCommandProcessor.GetInventoryList(Params: TJSONObject): TJSONValue;
 var
   jarray: TJSONArray;
 begin
-  TraceEnter('TCommandProcessor.GetInventoryList');
   jarray := TJSONArray.Create;
-
   try
     if Assigned(FEngine) and Assigned(FEngine.Inventory) then
     begin
@@ -3459,15 +3441,16 @@ begin
       Result := TJSONArray.Create;
     end;
   end;
-  TraceLeave('TCommandProcessor.GetInventoryList');
 end;
+
+
+
+
 function TCommandProcessor.GetQuestInventoryList(Params: TJSONObject): TJSONValue;
 var
   jarray: TJSONArray;
 begin
-  TraceEnter('TCommandProcessor.GetInventoryList');
   jarray := TJSONArray.Create;
-
   try
     if Assigned(FEngine) and Assigned(FEngine.Inventory) then
     begin
@@ -3482,12 +3465,11 @@ begin
   except
     on E: Exception do
     begin
-      TraceException('TCommandProcessor.GetInventoryList', E);
+      TraceException('TCommandProcessor.GetQuestInventoryList', E);
       jarray.Free;
       Result := TJSONArray.Create;
     end;
   end;
-  TraceLeave('TCommandProcessor.GetInventoryList');
 end;
 function TCommandProcessor.GetSkillList(Params: TJSONObject): TJSONValue;
 var jarray: TJSONArray;
@@ -3569,12 +3551,6 @@ var
   Rid, Meth, HandlerResult: TJSONValue;
   Handler: TCommandProc;
 begin
-  // Логируем входящую команду (обрезаем, если слишком длинная)
-  if Length(JsonStr) > 200 then
-    Trace('RPC Process: ' + Copy(JsonStr, 1, 200) + '...')
-  else
-    Trace('RPC Process: ' + JsonStr);
-
   Resp := TJSONObject.Create;
   try
     try
@@ -3599,14 +3575,13 @@ begin
         if Assigned(Meth) and FMethods.TryGetValue(Meth.Value, Handler) then
         begin
           try
-            Trace('[ProcessRpc] >> Calling handler: ' + Meth.Value);
+            Trace('[ProcessRpc] Calling: ' + Meth.Value);
             Resp.AddPair('status', 'success');
             HandlerResult := Handler(Req.GetValue('params') as TJSONObject);
             if HandlerResult <> nil then
               Resp.AddPair('result', HandlerResult)
             else
               Resp.AddPair('result', TJSONNull.Create);
-            Trace('[ProcessRpc] >> Handler returned OK: ' + Meth.Value);
           except
             on E: Exception do
             begin
@@ -3644,13 +3619,9 @@ begin
         Resp.AddPair('error', ErrObj);
       end;
     end;
-    Trace('[ProcessRpc] >> Resp.ToJSON');
     Result := Resp.ToJSON;
-    Trace('[ProcessRpc] >> ToJSON OK, len=' + IntToStr(Length(Result)));
   finally
-    Trace('[ProcessRpc] >> Resp.Free');
     Resp.Free;
-    Trace('[ProcessRpc] >> Resp.Free OK');
   end;
 end;
 
@@ -3668,8 +3639,6 @@ var
   ReconnectNeeded: Boolean;
   ErrCode: DWORD;
 begin
-  TraceFmt('TCommandProcessor.Run: Loop started (ThreadID: %d)', [GetCurrentThreadId]);
-
   try
     while not FStopRequested do
     begin
@@ -3680,14 +3649,10 @@ begin
 
         if ReadSuccess then
         begin
-          Trace('[Run] >> ProcessRpc START');
           Resp := ProcessRpc(Cmd);
-          Trace('[Run] >> ProcessRpc DONE, resp len=' + IntToStr(Length(Resp)));
 
-          Trace('[Run] >> SendToPipe START');
           WriteSuccess := FPipeManager.SendToPipe(
             FPipeManager.Pipes.Response, UTF8String(Resp + #13#10));
-          Trace('[Run] >> SendToPipe DONE, success=' + BoolToStr(WriteSuccess, True));
 
           if not WriteSuccess then
           begin
@@ -3731,7 +3696,6 @@ begin
       TraceException('TCommandProcessor.Run Fatal', E);
   end;
 
-  Trace('TCommandProcessor.Run: Loop finished.');
   SetEvent(FStoppedEvent);
 end;
 

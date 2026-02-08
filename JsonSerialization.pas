@@ -25,7 +25,8 @@ procedure FillLearnItem(Src: ILearnItem; Dest: TJSONObject);
 
 //Utils
 procedure FillL2BuffList(Src: IBuffList; Dest: TJSONArray);
-procedure FillL2ItemList(Src: IL2List; Dest: TJSONArray);
+procedure FillL2ItemList(Src: IItemList; Dest: TJSONArray); overload;
+procedure FillL2ItemList(Src: IL2List; Dest: TJSONArray); overload;
 procedure FillL2SpawnList(Src: ISpawnList; Dest: TJSONArray);
 procedure FillL2CharList(Src: ICharList; Dest: TJSONArray);
 procedure FillL2NpcList(Src: INpcList; Dest: TJSONArray);
@@ -48,17 +49,12 @@ implementation
 
 procedure FillL2Object(Src: IL2Object; Dest: TJSONObject);
 begin
-  if Src = nil then begin Trace('[FillL2Object] Src is NIL'); Exit; end;
+  if Src = nil then Exit;
   try
-    Trace('[FillL2Object] >> Name');
     Dest.AddPair('name', TJSONString.Create(Src.Name));
-    Trace('[FillL2Object] >> ID');
     Dest.AddPair('id', TJSONNumber.Create(Src.ID));
-    Trace('[FillL2Object] >> OID');
     Dest.AddPair('oid', TJSONNumber.Create(Src.OID));
-    Trace('[FillL2Object] >> Valid');
     Dest.AddPair('valid', TJSONBool.Create(Src.Valid));
-    Trace('[FillL2Object] >> L2Class');
 
     case Src.L2Class of
       lcError: Dest.AddPair('l2_class', TJSONString.Create('error'));
@@ -73,7 +69,6 @@ begin
     else
       Dest.AddPair('l2_class', TJSONString.Create('unknown'));
     end;
-    Trace('[FillL2Object] DONE');
   except
     on E: Exception do
       TraceException('FillL2Object', E);
@@ -82,21 +77,14 @@ end;
 
 procedure FillL2Spawn(Src: IL2Spawn; Dest: TJSONObject);
 begin
-  if Src = nil then begin Trace('[FillL2Spawn] Src is NIL'); Exit; end;
+  if Src = nil then Exit;
   try
-    Trace('[FillL2Spawn] >> FillL2Object');
     FillL2Object(Src, Dest);
-    Trace('[FillL2Spawn] >> X');
     Dest.AddPair('x', TJSONNumber.Create(Src.X));
-    Trace('[FillL2Spawn] >> Y');
     Dest.AddPair('y', TJSONNumber.Create(Src.Y));
-    Trace('[FillL2Spawn] >> Z');
     Dest.AddPair('z', TJSONNumber.Create(Src.Z));
-    Trace('[FillL2Spawn] >> SpawnTime');
     Dest.AddPair('spawn_time', TJSONNumber.Create(Src.SpawnTime));
-    Trace('[FillL2Spawn] >> InZone');
     Dest.AddPair('in_zone', TJSONBool.Create(Src.InZone));
-    Trace('[FillL2Spawn] DONE');
   except
     on E: Exception do
       TraceException('FillL2Spawn', E);
@@ -108,127 +96,76 @@ var
   TargetObj, CastObj: TJSONObject;
   BuffsArr, AbnormalsArr, EquipsArr: TJSONArray;
 begin
-  if Src = nil then begin Trace('[FillL2Live] Src is NIL'); Exit; end;
-  if not Src.Valid then begin Trace('[FillL2Live] Src is INVALID'); Exit; end;
+  if Src = nil then Exit;
+  if not Src.Valid then Exit;
   try
-    Trace('[FillL2Live] >> FillL2Spawn (Depth=' + IntToStr(Depth) + ')');
     FillL2Spawn(Src, Dest);
-    Trace('[FillL2Live] >> Title');
     Dest.AddPair('title', TJSONString.Create(Src.Title));
-    Trace('[FillL2Live] >> Level');
     Dest.AddPair('level', TJSONNumber.Create(Src.Level));
-    Trace('[FillL2Live] >> HP');
     Dest.AddPair('hp', TJSONNumber.Create(Src.HP));
-    Trace('[FillL2Live] >> CurHP');
     Dest.AddPair('cur_hp', TJSONNumber.Create(Src.CurHP));
-    Trace('[FillL2Live] >> MaxHP');
     Dest.AddPair('max_hp', TJSONNumber.Create(Src.MaxHP));
-    Trace('[FillL2Live] >> MP');
     Dest.AddPair('mp', TJSONNumber.Create(Src.MP));
-    Trace('[FillL2Live] >> CurMP');
     Dest.AddPair('cur_mp', TJSONNumber.Create(Src.CurMP));
-    Trace('[FillL2Live] >> MaxMP');
     Dest.AddPair('max_mp', TJSONNumber.Create(Src.MaxMP));
-    Trace('[FillL2Live] >> Load');
     Dest.AddPair('load', TJSONNumber.Create(Src.Load));
-    Trace('[FillL2Live] >> EXP');
     Dest.AddPair('exp', TJSONNumber.Create(Src.EXP));
-    Trace('[FillL2Live] >> EXP2');
     Dest.AddPair('exp2', TJSONNumber.Create(Src.EXP2));
-    Trace('[FillL2Live] >> SP');
     Dest.AddPair('sp', TJSONNumber.Create(Src.SP));
-    Trace('[FillL2Live] >> PK');
     Dest.AddPair('is_pk', TJSONBool.Create(Src.PK));
-    Trace('[FillL2Live] >> PvP');
     Dest.AddPair('is_pvp', TJSONBool.Create(Src.PvP));
-    Trace('[FillL2Live] >> Karma');
     Dest.AddPair('karma', TJSONNumber.Create(Src.Karma));
-    Trace('[FillL2Live] >> Attackable');
     Dest.AddPair('attackable', TJSONBool.Create(Src.Attackable));
-    Trace('[FillL2Live] >> Sweepable');
     Dest.AddPair('sweepable', TJSONBool.Create(Src.Sweepable));
-    Trace('[FillL2Live] >> Running');
     Dest.AddPair('is_running', TJSONBool.Create(Src.Running));
-    Trace('[FillL2Live] >> InCombat');
     Dest.AddPair('in_combat', TJSONBool.Create(Src.InCombat));
-    Trace('[FillL2Live] >> Sitting');
     Dest.AddPair('is_sitting', TJSONBool.Create(Src.Sitting));
-    Trace('[FillL2Live] >> Dead');
     Dest.AddPair('is_dead', TJSONBool.Create(Src.Dead));
-    Trace('[FillL2Live] >> Invisible');
     Dest.AddPair('is_invisible', TJSONBool.Create(Src.Invisible));
-    Trace('[FillL2Live] >> Speed');
     Dest.AddPair('speed', TJSONNumber.Create(Src.Speed));
-    Trace('[FillL2Live] >> ToX');
     Dest.AddPair('to_x', TJSONNumber.Create(Src.ToX));
-    Trace('[FillL2Live] >> ToY');
     Dest.AddPair('to_y', TJSONNumber.Create(Src.ToY));
-    Trace('[FillL2Live] >> ToZ');
     Dest.AddPair('to_z', TJSONNumber.Create(Src.ToZ));
-    Trace('[FillL2Live] >> Clan');
     Dest.AddPair('clan', TJSONString.Create(Src.Clan));
-    Trace('[FillL2Live] >> ClanID');
     Dest.AddPair('clan_id', TJSONNumber.Create(Src.ClanID));
-    Trace('[FillL2Live] >> AtkOID');
     Dest.AddPair('atk_oid', TJSONNumber.Create(Src.AtkOID));
-    Trace('[FillL2Live] >> CastSpd');
     Dest.AddPair('cast_spd', TJSONNumber.Create(Src.CastSpd));
-    Trace('[FillL2Live] >> AtkSpd');
     Dest.AddPair('atk_spd', TJSONNumber.Create(Src.AtkSpd));
 
-    Trace('[FillL2Live] >> Target check');
     if (Depth < 1) and (Src.Target <> nil) and (Src.Target.Valid) then
     begin
-      Trace('[FillL2Live] >> Target FOUND, filling...');
       TargetObj := TJSONObject.Create;
       FillL2Live(Src.Target, TargetObj, Depth + 1);
       Dest.AddPair('target', TargetObj);
-      Trace('[FillL2Live] >> Target DONE');
-    end
-    else
-      Trace('[FillL2Live] >> Target: none or depth limit');
+    end;
 
-    Trace('[FillL2Live] >> Cast check');
     if Src.Cast <> nil then
     begin
-      Trace('[FillL2Live] >> Cast FOUND, filling...');
       CastObj := TJSONObject.Create;
       FillL2Buff(Src.Cast, CastObj);
       Dest.AddPair('cast_info', CastObj);
-      Trace('[FillL2Live] >> Cast DONE');
     end;
 
-    Trace('[FillL2Live] >> Buffs check');
     if Src.Buffs <> nil then
     begin
-      Trace('[FillL2Live] >> Buffs FOUND, filling...');
       BuffsArr := TJSONArray.Create;
       FillL2BuffList(Src.Buffs, BuffsArr);
       Dest.AddPair('buffs', BuffsArr);
-      Trace('[FillL2Live] >> Buffs DONE');
     end;
 
-    Trace('[FillL2Live] >> Abnormals check');
     if Src.Abnormals <> nil then
     begin
-      Trace('[FillL2Live] >> Abnormals FOUND, filling...');
       AbnormalsArr := TJSONArray.Create;
       FillL2BuffList(Src.Abnormals, AbnormalsArr);
       Dest.AddPair('abnormals', AbnormalsArr);
-      Trace('[FillL2Live] >> Abnormals DONE');
     end;
 
-    Trace('[FillL2Live] >> Equips check');
     if ((Src.L2Class = lcUser) or (Src.L2Class = lcChar)) and (Src.Equips <> nil) then
     begin
-      Trace('[FillL2Live] >> Equips FOUND, filling...');
       EquipsArr := TJSONArray.Create;
       FillL2ItemList(Src.Equips, EquipsArr);
       Dest.AddPair('equips', EquipsArr);
-      Trace('[FillL2Live] >> Equips DONE');
     end;
-
-    Trace('[FillL2Live] DONE (Depth=' + IntToStr(Depth) + ')');
   except
     on E: Exception do
       TraceException('FillL2Live (Depth=' + IntToStr(Depth) + ')', E);
@@ -277,12 +214,10 @@ procedure FillL2Char(Src: IL2Char; Dest: TJSONObject);
 var
   RaceStr: string;
 begin
-  if Src = nil then begin Trace('[FillL2Char] Src is NIL'); Exit; end;
-  if not Src.Valid then begin Trace('[FillL2Char] Src is INVALID'); Exit; end;
+  if Src = nil then Exit;
+  if not Src.Valid then Exit;
   try
-    Trace('[FillL2Char] >> FillL2Live');
     FillL2Live(Src, Dest);
-    Trace('[FillL2Char] >> Race');
     case Cardinal(Src.Race) of
       0: RaceStr := 'human';
       1: RaceStr := 'elf';
@@ -294,44 +229,25 @@ begin
     else
       RaceStr := 'unknown';
     end;
-    Trace('[FillL2Char] >> CP');
     Dest.AddPair('cp', TJSONNumber.Create(Src.CP));
-    Trace('[FillL2Char] >> CurCP');
     Dest.AddPair('cur_cp', TJSONNumber.Create(Src.CurCP));
-    Trace('[FillL2Char] >> MaxCP');
     Dest.AddPair('max_cp', TJSONNumber.Create(Src.MaxCP));
-    Trace('[FillL2Char] >> Sex');
     Dest.AddPair('sex', TJSONNumber.Create(Src.Sex));
     Dest.AddPair('race', TJSONString.Create(RaceStr));
-    Trace('[FillL2Char] >> Hero');
     Dest.AddPair('is_hero', TJSONBool.Create(Src.Hero));
-    Trace('[FillL2Char] >> Noble');
     Dest.AddPair('is_noble', TJSONBool.Create(Src.Noble));
-    Trace('[FillL2Char] >> Premium');
     Dest.AddPair('premium', TJSONBool.Create(Src.Premium));
-    Trace('[FillL2Char] >> ClassID');
     Dest.AddPair('class_id', TJSONNumber.Create(Src.ClassID));
-    Trace('[FillL2Char] >> MainClass');
     Dest.AddPair('main_class_id', TJSONNumber.Create(Src.MainClass));
-    Trace('[FillL2Char] >> ClassName');
     Dest.AddPair('class_name', TJSONString.Create(Src.ClassName));
-    Trace('[FillL2Char] >> ClassName2');
     Dest.AddPair('class_name_alt', TJSONString.Create(Src.ClassName2));
-    Trace('[FillL2Char] >> ClassPriority');
     Dest.AddPair('class_priority', TJSONNumber.Create(Src.ClassPriority));
-    Trace('[FillL2Char] >> MountType');
     Dest.AddPair('mount_type', TJSONNumber.Create(Src.MountType));
-    Trace('[FillL2Char] >> StoreType');
     Dest.AddPair('store_type', TJSONNumber.Create(Src.StoreType));
-    Trace('[FillL2Char] >> CubicCount');
     Dest.AddPair('cubic_count', TJSONNumber.Create(Src.CubicCount));
-    Trace('[FillL2Char] >> Recom');
     Dest.AddPair('recom', TJSONNumber.Create(Src.Recom));
-    Trace('[FillL2Char] >> ClanName');
     Dest.AddPair('clan_name', TJSONString.Create(Src.ClanName));
-    Trace('[FillL2Char] >> AllyName');
     Dest.AddPair('ally_name', TJSONString.Create(Src.AllyName));
-    Trace('[FillL2Char] DONE');
   except
     on E: Exception do
       TraceException('FillL2Char', E);
@@ -348,62 +264,36 @@ begin
 
   if not Src.Valid then
   begin
-    TraceFmt('FillL2User: Source object is INVALID (OID: %d)', [Src.OID]);
+    TraceError('FillL2User', 'Source object is INVALID');
     Exit;
   end;
 
   try
-    Trace('[FillL2User] >> FillL2Char');
     FillL2Char(Src, Dest);
-    Trace('[FillL2User] >> CanCryst');
     Dest.AddPair('can_cryst', TJSONBool.Create(Src.CanCryst));
-    Trace('[FillL2User] >> Charges');
     Dest.AddPair('charges', TJSONNumber.Create(Src.Charges));
-    Trace('[FillL2User] >> Souls');
     Dest.AddPair('souls', TJSONNumber.Create(Src.Souls));
-    Trace('[FillL2User] >> WeightPenalty');
     Dest.AddPair('weight_penalty', TJSONNumber.Create(Src.WeightPenalty));
-    Trace('[FillL2User] >> WeapPenalty');
     Dest.AddPair('weapon_penalty', TJSONNumber.Create(Src.WeapPenalty));
-    Trace('[FillL2User] >> ArmorPenalty');
     Dest.AddPair('armor_penalty', TJSONNumber.Create(Src.ArmorPenalty));
-    Trace('[FillL2User] >> DeathPenalty');
     Dest.AddPair('death_penalty', TJSONNumber.Create(Src.DeathPenalty));
-    Trace('[FillL2User] >> STR');
     Dest.AddPair('stat_str', TJSONNumber.Create(Src.STR));
-    Trace('[FillL2User] >> DEX');
     Dest.AddPair('stat_dex', TJSONNumber.Create(Src.DEX));
-    Trace('[FillL2User] >> CON');
     Dest.AddPair('stat_con', TJSONNumber.Create(Src.CON));
-    Trace('[FillL2User] >> INT');
     Dest.AddPair('stat_int', TJSONNumber.Create(Src.INT));
-    Trace('[FillL2User] >> WIT');
     Dest.AddPair('stat_wit', TJSONNumber.Create(Src.WIT));
-    Trace('[FillL2User] >> MEN');
     Dest.AddPair('stat_men', TJSONNumber.Create(Src.MEN));
-    Trace('[FillL2User] >> PAtk');
     Dest.AddPair('p_atk', TJSONNumber.Create(Src.PAtk));
-    Trace('[FillL2User] >> PASpd');
     Dest.AddPair('p_atk_spd', TJSONNumber.Create(Src.PASpd));
-    Trace('[FillL2User] >> PDef');
     Dest.AddPair('p_def', TJSONNumber.Create(Src.PDef));
-    Trace('[FillL2User] >> Accuracy');
     Dest.AddPair('p_accuracy', TJSONNumber.Create(Src.Accuracy));
-    Trace('[FillL2User] >> Evasion');
     Dest.AddPair('p_evasion', TJSONNumber.Create(Src.Evasion));
-    Trace('[FillL2User] >> CritHit');
     Dest.AddPair('p_crit', TJSONNumber.Create(Src.CritHit));
-    Trace('[FillL2User] >> MAtk');
     Dest.AddPair('m_atk', TJSONNumber.Create(Src.MAtk));
-    Trace('[FillL2User] >> MDef');
     Dest.AddPair('m_def', TJSONNumber.Create(Src.MDef));
-    Trace('[FillL2User] >> MAccuracy');
     Dest.AddPair('m_accuracy', TJSONNumber.Create(Src.MAccuracy));
-    Trace('[FillL2User] >> MEvasion');
     Dest.AddPair('m_evasion', TJSONNumber.Create(Src.MEvasioon));
-    Trace('[FillL2User] >> MCritical');
     Dest.AddPair('m_crit', TJSONNumber.Create(Src.MCritical));
-    Trace('[FillL2User] DONE');
   except
     on E: Exception do
       TraceException('FillL2User', E);
@@ -413,52 +303,27 @@ end;
 //Items
 procedure FillL2Item(Src: IL2Item; Dest: TJSONObject);
 begin
-  if Src = nil then begin Trace('[FillL2Item] Src is NIL'); Exit; end;
-  if not Src.Valid then begin Trace('[FillL2Item] Src is INVALID'); Exit; end;
-  try
-    Trace('[FillL2Item] >> FillL2Object');
-    FillL2Object(Src, Dest);
-    Trace('[FillL2Item] >> Slot');
-    Dest.AddPair('slot', TJSONNumber.Create(Src.Slot));
-    Trace('[FillL2Item] >> Count');
-    Dest.AddPair('count', TJSONNumber.Create(Src.Count));
-    Trace('[FillL2Item] >> Equipped');
-    Dest.AddPair('equipped', TJSONBool.Create(Src.Equipped));
-    Trace('[FillL2Item] >> ItemType');
-    Dest.AddPair('item_type', TJSONNumber.Create(Src.ItemType));
-    Trace('[FillL2Item] >> Grade');
-    Dest.AddPair('grade', TJSONNumber.Create(Src.Grade));
-    Trace('[FillL2Item] >> GradeName');
-    Dest.AddPair('grade_name', TJSONString.Create(Src.GradeName));
-    Trace('[FillL2Item] >> EnchantLevel');
-    Dest.AddPair('enchant', TJSONNumber.Create(Src.EnchantLevel));
-    Trace('[FillL2Item] >> BodyPart');
-    Dest.AddPair('body_part', TJSONNumber.Create(Src.BodyPart));
-    Trace('[FillL2Item] >> AugmentID');
-    Dest.AddPair('augment_id', TJSONNumber.Create(Src.AugmentID));
-    Trace('[FillL2Item] >> AugmentID2');
-    Dest.AddPair('augment_id2', TJSONNumber.Create(Src.AugmentID2));
-    Trace('[FillL2Item] >> AtkElem');
-    Dest.AddPair('atk_elem', TJSONNumber.Create(Src.AtkElem));
-    Trace('[FillL2Item] >> ElemPower');
-    Dest.AddPair('elem_power', TJSONNumber.Create(Src.ElemPower));
-    Trace('[FillL2Item] >> WaterPower');
-    Dest.AddPair('p_water', TJSONNumber.Create(Src.WaterPower));
-    Trace('[FillL2Item] >> FirePower');
-    Dest.AddPair('p_fire', TJSONNumber.Create(Src.FirePower));
-    Trace('[FillL2Item] >> EartPower');
-    Dest.AddPair('p_earth', TJSONNumber.Create(Src.EartPower));
-    Trace('[FillL2Item] >> WindPower');
-    Dest.AddPair('p_wind', TJSONNumber.Create(Src.WindPower));
-    Trace('[FillL2Item] >> UnholyPower');
-    Dest.AddPair('p_unholy', TJSONNumber.Create(Src.UnholyPower));
-    Trace('[FillL2Item] >> HolyPower');
-    Dest.AddPair('p_holy', TJSONNumber.Create(Src.HolyPower));
-    Trace('[FillL2Item] DONE');
-  except
-    on E: Exception do
-      TraceException('FillL2Item', E);
-  end;
+  if Src = nil then Exit;
+  if not Src.Valid then Exit;
+  try FillL2Object(Src, Dest); except on E: Exception do TraceException('FillL2Item.L2Object', E); end;
+  try Dest.AddPair('slot', TJSONNumber.Create(Src.Slot)); except on E: Exception do TraceException('FillL2Item.slot', E); end;
+  try Dest.AddPair('count', TJSONNumber.Create(Src.Count)); except on E: Exception do TraceException('FillL2Item.count', E); end;
+  try Dest.AddPair('equipped', TJSONBool.Create(Src.Equipped)); except on E: Exception do TraceException('FillL2Item.equipped', E); end;
+  try Dest.AddPair('item_type', TJSONNumber.Create(Src.ItemType)); except on E: Exception do TraceException('FillL2Item.item_type', E); end;
+  try Dest.AddPair('grade', TJSONNumber.Create(Src.Grade)); except on E: Exception do TraceException('FillL2Item.grade', E); end;
+  try Dest.AddPair('grade_name', TJSONString.Create(Src.GradeName)); except on E: Exception do TraceException('FillL2Item.grade_name', E); end;
+  try Dest.AddPair('enchant', TJSONNumber.Create(Src.EnchantLevel)); except on E: Exception do TraceException('FillL2Item.enchant', E); end;
+  try Dest.AddPair('body_part', TJSONNumber.Create(Src.BodyPart)); except on E: Exception do TraceException('FillL2Item.body_part', E); end;
+  try Dest.AddPair('augment_id', TJSONNumber.Create(Src.AugmentID)); except on E: Exception do TraceException('FillL2Item.augment_id', E); end;
+  try Dest.AddPair('augment_id2', TJSONNumber.Create(Src.AugmentID2)); except on E: Exception do TraceException('FillL2Item.augment_id2', E); end;
+  try Dest.AddPair('atk_elem', TJSONNumber.Create(Src.AtkElem)); except on E: Exception do TraceException('FillL2Item.atk_elem', E); end;
+  try Dest.AddPair('elem_power', TJSONNumber.Create(Src.ElemPower)); except on E: Exception do TraceException('FillL2Item.elem_power', E); end;
+  try Dest.AddPair('p_water', TJSONNumber.Create(Src.WaterPower)); except on E: Exception do TraceException('FillL2Item.p_water', E); end;
+  try Dest.AddPair('p_fire', TJSONNumber.Create(Src.FirePower)); except on E: Exception do TraceException('FillL2Item.p_fire', E); end;
+  try Dest.AddPair('p_earth', TJSONNumber.Create(Src.EartPower)); except on E: Exception do TraceException('FillL2Item.p_earth', E); end;
+  try Dest.AddPair('p_wind', TJSONNumber.Create(Src.WindPower)); except on E: Exception do TraceException('FillL2Item.p_wind', E); end;
+  try Dest.AddPair('p_unholy', TJSONNumber.Create(Src.UnholyPower)); except on E: Exception do TraceException('FillL2Item.p_unholy', E); end;
+  try Dest.AddPair('p_holy', TJSONNumber.Create(Src.HolyPower)); except on E: Exception do TraceException('FillL2Item.p_holy', E); end;
 end;
 
 procedure FillL2Drop(Src: IL2Drop; Dest: TJSONObject);
@@ -718,7 +583,7 @@ begin
   end;
 end;
 
-procedure FillL2ItemList(Src: IL2List; Dest: TJSONArray);
+procedure FillL2ItemList(Src: IItemList; Dest: TJSONArray);
 var
   I: Integer;
   ItemObj: TJSONObject;
@@ -728,7 +593,7 @@ begin
   try
     for I := 0 to Src.Count - 1 do
     begin
-      Item := IL2Item(Src.Items[I]);
+      Item := Src.Items[I];
       if (Item <> nil) and Item.Valid then
       begin
         ItemObj := TJSONObject.Create;
@@ -738,7 +603,32 @@ begin
     end;
   except
     on E: Exception do
-      TraceException('FillL2ItemList', E);
+      TraceException('FillL2ItemList(IItemList)', E);
+  end;
+end;
+
+procedure FillL2ItemList(Src: IL2List; Dest: TJSONArray);
+var
+  I: Integer;
+  ItemObj: TJSONObject;
+  Obj: IL2Object;
+  Item: IL2Item;
+begin
+  if (Src = nil) or (Dest = nil) then Exit;
+  try
+    for I := 0 to Src.Count - 1 do
+    begin
+      Obj := Src.Items[I];
+      if (Obj <> nil) and Obj.Valid and Supports(Obj, IL2Item, Item) then
+      begin
+        ItemObj := TJSONObject.Create;
+        FillL2Item(Item, ItemObj);
+        Dest.AddElement(ItemObj);
+      end;
+    end;
+  except
+    on E: Exception do
+      TraceException('FillL2ItemList(IL2List)', E);
   end;
 end;
 
